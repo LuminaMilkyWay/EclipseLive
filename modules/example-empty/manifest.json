@@ -1,0 +1,25 @@
+{
+  "id": "example-empty",
+  "name": "Empty Example",
+  "version": "0.1.0",
+  "author": "EclipseLIVE",
+  "description": "参考用最小业务模块：一个应用内页面示例（web 相对 url），复制我（或 templates/module）开始一个新模块。",
+  "permissions": [],
+  "dependencies": [],
+  "entry": "index.js",
+  "events": [],
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/example-empty/page"
+    }
+  ],
+  "channels": [],
+  "web": {
+    "url": "/example-empty/page",
+    "windowMode": "embedded",
+    "pinned": true
+  },
+  "license": "MIT",
+  "licenseFile": "LICENSE"
+}

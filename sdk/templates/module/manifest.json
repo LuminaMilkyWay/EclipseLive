@@ -1,0 +1,15 @@
+{
+  "id": "my-module",
+  "name": "My Module",
+  "version": "0.1.0",
+  "author": "your-name",
+  "description": "一句话描述模块做什么",
+  "permissions": [],
+  "dependencies": [],
+  "entry": "index.js",
+  "events": [],
+  "routes": [],
+  "channels": [],
+  "license": "MIT",
+  "licenseFile": "LICENSE"
+}

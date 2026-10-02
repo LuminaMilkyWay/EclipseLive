@@ -1,0 +1,106 @@
+{
+  "name": "eclipselive",
+  "version": "0.2.2-beta1",
+  "description": "EclipseLIVE — 面向虚拟主播的纯本地 OBS 辅助软件（核心框架）",
+  "main": "./out/main/index.js",
+  "private": true,
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:integration": "electron-vite build && playwright test",
+    "pack:modules": "vitest run tests/unit/module-elm-pack.spec.ts",
+    "dist": "electron-vite build && electron-builder --win",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json",
+    "typecheck:web": "tsc --noEmit -p tsconfig.web.json",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web"
+  },
+  "build": {
+    "appId": "live.eclipse.eclipselive",
+    "productName": "EclipseLIVE",
+    "artifactName": "EclipseLive-0.2.2-Corona-win-${arch}.${ext}",
+    "directories": {
+      "output": "dist"
+    },
+    "electronDownload": {
+      "mirror": "https://registry.npmmirror.com/-/binary/electron/",
+      "cache": "./node_modules/.cache/electron"
+    },
+    "files": [
+      "out/**",
+      "assets/**",
+      "node_modules/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "modules",
+        "to": "modules"
+      },
+      {
+        "from": "CHANGELOG.md",
+        "to": "CHANGELOG.md"
+      },
+      {
+        "from": "RELEASE_NOTES.md",
+        "to": "RELEASE_NOTES.md"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "EclipseLive-0.2.2-Corona-Setup.${ext}"
+    }
+  },
+  "dependencies": {
+    "adm-zip": "^0.6.1",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/adm-zip": "^0.5.8",
+    "@types/node": "^26.6.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/ws": "^8.18.1",
+    "@vitejs/plugin-react": "^4.7.0",
+    "electron": "^44.4.3",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.1"
+  },
+  "license": "AGPL-3.0-or-later",
+  "author": "LuminaMilkyWay <1522464250@qq.com> (https://space.bilibili.com/506520149)",
+  "homepage": "https://space.bilibili.com/506520149",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LuminaMilkyWay/EclipseLive.git"
+  },
+  "bugs": {
+    "url": "https://github.com/LuminaMilkyWay/EclipseLive/issues"
+  }
+}
