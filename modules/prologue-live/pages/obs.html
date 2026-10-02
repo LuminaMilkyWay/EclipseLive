@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="eclipse-ui-context" content="canvas">
+<title>PrologueType Live · OBS</title>
+<style>
+  :root {
+    /* 尺寸层（镜像核心 renderer.css 设计令牌：OBS 浏览器源独立 web 上下文，自建令牌消费） */
+    --r-sm: 8px;
+    --pt-bg: #000000;
+    --pt-border: #ffffff;
+    --pt-border-w: 2px;
+    --pt-blur: 16px;
+    --pt-opacity: 60%;
+    --pt-text: #ffffff;
+    --pt-font: "Microsoft YaHei";
+    --pt-size: 28px;
+    --pt-scroll-ms: 400ms;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; overflow: hidden; background: transparent; }
+  #wrap { position: absolute; inset: 0; overflow: hidden; }
+  #stage {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    transform: translateY(0);
+    transition: transform var(--pt-scroll-ms) ease-out;
+  }
+  .para {
+    font-family: var(--pt-font);
+    font-size: var(--pt-size);
+    line-height: 1.45;
+    color: var(--pt-text);
+    padding: 4px 14px;
+    margin: 2px 0;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .sym { opacity: 0.85; }
+  /* 六样式：无底图/高斯模糊/纯色 × 有无外框（全部走 CSS 变量，零硬编码色值） */
+  [data-pt-style="none"] .para { background: transparent; border: none; }
+  [data-pt-style="none-border"] .para {
+    background: transparent; border: var(--pt-border-w) solid var(--pt-border); border-radius: var(--r-sm);
+  }
+  [data-pt-style="blur"] .para {
+    background: color-mix(in srgb, var(--pt-bg) var(--pt-opacity), transparent);
+    backdrop-filter: blur(var(--pt-blur));
+  }
+  [data-pt-style="blur-border"] .para {
+    background: color-mix(in srgb, var(--pt-bg) var(--pt-opacity), transparent);
+    backdrop-filter: blur(var(--pt-blur));
+    border: var(--pt-border-w) solid var(--pt-border); border-radius: var(--r-sm);
+  }
+  [data-pt-style="solid"] .para { background: var(--pt-bg); border: none; }
+  [data-pt-style="solid-border"] .para {
+    background: var(--pt-bg); border: var(--pt-border-w) solid var(--pt-border); border-radius: var(--r-sm);
+  }
+</style>
+</head>
+<body>
+<div id="wrap"><div id="stage"></div></div>
+<script>
+(() => {
+  'use strict'
+  const CHANNEL = 'prologue-live'
+  const token = new URLSearchParams(location.search).get('token') ?? ''
+  const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws?token=' + encodeURIComponent(token)
+  const stateUrl = '/prologue-live/state' + location.search
+
+  const wrap = document.getElementById('wrap')
+  const stage = document.getElementById('stage')
+  const blocks = new Map() // id -> block element
+  let cfg = null
+  let typing = null // {id, text, chars, idx, textEl, suffixEl, timer}
+
+  /* ---------- 样式应用（CSS 变量注入，实时热更） ---------- */
+  function applyStyle(c) {
+    cfg = c
+    const r = document.documentElement.style
+    r.setProperty('--pt-bg', c.bgColor)
+    r.setProperty('--pt-border', c.borderColor)
+    r.setProperty('--pt-border-w', c.borderWidth + 'px')
+    r.setProperty('--pt-blur', c.blurStrength + 'px')
+    r.setProperty('--pt-opacity', c.opacity + '%')
+    r.setProperty('--pt-text', c.textColor)
+    r.setProperty('--pt-font', '"' + c.fontFamily.replace(/["\\]/g, '') + '"')
+    r.setProperty('--pt-size', c.fontSize + 'px')
+    r.setProperty('--pt-scroll-ms', c.scrollSpeed + 'ms')
+    document.body.dataset.ptStyle = c.styleType
+  }
+
+  /* ---------- 逐字引擎（页面侧渲染器；入口引擎只负责排队衔接） ---------- */
+  function tickOnce() {
+    if (!typing) return
+    if (typing.idx < typing.chars.length) {
+      typing.textEl.textContent += typing.chars[typing.idx++]
+      scroll()
+    } else {
+      stopTyping()
+      typing.suffixEl.hidden = false
+      scroll()
+    }
+  }
+  function startTimer() {
+    if (typing.timer) clearInterval(typing.timer)
+    typing.timer = setInterval(tickOnce, Math.max(cfg.typingSpeed, 10))
+  }
+  function stopTyping() {
+    if (typing && typing.timer) { clearInterval(typing.timer); typing.timer = null }
+  }
+  function startParagraph(rec) {
+    stopTyping()
+    const block = document.createElement('div')
+    block.className = 'para'
+    if (cfg.prefixSymbol) {
+      const pre = document.createElement('span')
+      pre.className = 'sym'
+      pre.textContent = cfg.prefixSymbol
+      block.appendChild(pre)
+    }
+    const textEl = document.createElement('span')
+    block.appendChild(textEl)
+    const suffixEl = document.createElement('span')
+    suffixEl.className = 'sym'
+    suffixEl.hidden = true
+    if (cfg.suffixSymbol) suffixEl.textContent = cfg.suffixSymbol
+    block.appendChild(suffixEl)
+    stage.appendChild(block)
+    blocks.set(rec.id, block)
+    typing = { id: rec.id, text: rec.text, chars: Array.from(rec.text), idx: 0, textEl, suffixEl, timer: null }
+    scroll()
+    startTimer()
+  }
+  function removeBlock(id) {
+    const b = blocks.get(id)
+    if (b) { b.remove(); blocks.delete(id) }
+    if (typing && typing.id === id) stopTyping()
+    scroll()
+  }
+  function clearStage() {
+    stopTyping()
+    typing = null
+    stage.textContent = ''
+    blocks.clear()
+    scroll()
+  }
+
+  /* ---------- 行滚动：stage 底部锚定，内容超高自然向上溢出裁切（字幕贴底） ----------
+     静止位移恒为 0——负位移（历史回归：translateY(wrapH - contentH) 双重补偿）会把
+     整块字幕越推越高直至偏出显示区上缘，且内容只增不减 → 永不自愈。
+     内容增长 Δ 时先瞬时预偏 +Δ（新行位于显示区下缘外），再过渡归零：
+     整体上滑、新行从下方进入，过渡时长 = scrollSpeed。 */
+  let contentH = 0
+  function scroll() {
+    const h = stage.scrollHeight
+    const delta = h - contentH
+    contentH = h
+    if (delta > 0) {
+      stage.style.transition = 'none'
+      stage.style.transform = 'translateY(' + delta + 'px)'
+      void stage.offsetHeight
+      stage.style.transition = ''
+    }
+    stage.style.transform = 'translateY(0)'
+  }
+  new ResizeObserver(scroll).observe(wrap)
+
+  /* ---------- 队列动作（入口下行） ---------- */
+  function onAction(msg) {
+    if (msg.op === 'pause') stopTyping()
+    else if (msg.op === 'resume') { if (typing) startTimer() }
+    else if (msg.op === 'undo') removeBlock(msg.id)
+    else if (msg.op === 'clear') clearStage()
+  }
+
+  /* ---------- 初始加载 ---------- */
+  function loadState() {
+    fetch(stateUrl).then((r) => r.json()).then((s) => {
+      if (s.config) applyStyle(s.config)
+      if (s.playing) startParagraph(s.playing)
+    }).catch(() => { /* 网关未就绪，WS 就绪后重试 */ })
+  }
+
+  /* ---------- WS（网关频道） ---------- */
+  let ws = null
+  function connect() {
+    ws = new WebSocket(wsUrl)
+    ws.onmessage = (ev) => {
+      let msg
+      try { msg = JSON.parse(ev.data) } catch { return }
+      if (!msg || msg.channel !== CHANNEL) return
+      const p = msg.payload
+      if (!p || typeof p !== 'object') return
+      if (p.type === 'state' && p.config) applyStyle(p.config)
+      else if (p.type === 'enqueue') startParagraph(p)
+      else if (p.type === 'action') onAction(p)
+    }
+    ws.onclose = () => {
+      setTimeout(() => { loadState(); connect() }, 1000)
+    }
+  }
+  loadState()
+  connect()
+})()
+</script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+{
+  "format": "eclipselive-config",
+  "appVersion": "0.1.0",
+  "exportedAt": 0,
+  "sections": {
+    "lifecycle": {
+      "version": 1,
+      "data": {
+        "closeToTray": true
+      }
+    },
+    "core.obs": {
+      "version": 1,
+      "data": {
+        "port": 4455,
+        "password": "",
+        "eventSubscriptions": 65535,
+        "autoReconnect": true,
+        "bindings": []
+      }
+    }
+  }
+}

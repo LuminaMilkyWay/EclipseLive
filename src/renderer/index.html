@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>EclipseLive 0.2.2-Corona</title>
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: eclipse-wallpaper:; connect-src 'self' eclipse-wallpaper:"
+    />
+  </head>
+  <body>
+    <!-- T28 玻璃折射滤镜（静态、无 animate）：feTurbulence 低频噪声 + feDisplacementMap 位移。
+         档 2 subtle（scale 20）/ 档 3 strong（scale 42）；仅 Chromium 支持时由场景层消费，
+         color-interpolation-filters=sRGB 保证色散/位移色彩可预期。
+
+         ★ 排障修正（用户实测"功能区域左侧边界出现清晰可见的怪异灰色边界"，**三档都有**）：
+         ① 滤镜区域原先外扩（-30%/-40%、160%/180%）⇒ 滤镜输出**不受元素圆角/边界裁切**，
+            位移后的壁纸被画到面板之外，在侧栏右缘（= 内容区左边界）糊出一条亮带（实测亮度
+            209/207，而两侧仅 ~85~110）。现改为**贴合元素盒子**（0/0/100%/100%）。
+         ② 边缘处直接位移会采样到元素外（那里没有像素）⇒ 用 `feTile` 把输入铺满滤镜区域，
+            采样因此**环绕**而非取空，边缘不再出现透明/异常的窄条。 -->
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true" focusable="false">
+      <filter id="glass-refract-subtle" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.008" numOctaves="2" seed="7" result="noise" />
+        <feGaussianBlur in="noise" stdDeviation="1.5" result="soft" />
+        <feTile in="SourceGraphic" result="tiled" />
+        <feDisplacementMap in="tiled" in2="soft" scale="20" xChannelSelector="R" yChannelSelector="G" />
+      </filter>
+      <filter id="glass-refract-strong" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.008" numOctaves="2" seed="7" result="noise" />
+        <feGaussianBlur in="noise" stdDeviation="2" result="soft" />
+        <feTile in="SourceGraphic" result="tiled" />
+        <feDisplacementMap in="tiled" in2="soft" scale="42" xChannelSelector="R" yChannelSelector="G" />
+      </filter>
+    </svg>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

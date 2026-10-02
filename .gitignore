@@ -1,0 +1,83 @@
+node_modules/
+out/
+dist/
+*.log
+.vite/
+.env
+.env.*
+.DS_Store
+Thumbs.db
+prototype/config.json
+test-results/
+playwright-report/
+# 目视验收用的开发态 profile（沙箱不允许 Electron 写 APPDATA，故重定向到工作区）
+.live-userdata/
+.tmp/
+.tmp-pw-*/
+.workbuddy/
+# 构建产物 / 安装包备份（用户要求）
+dist-*/
+dist-staging/
+release/
+*.exe
+*.blockmap
+# 开发截图（非交付物）
+diag-*.png
+*-shot.png
+edge-tier*.png
+bound3.png
+module-*.png
+visual-tool-*.png
+# 工具/临时
+.trae/
+
+# 内部开发资料（不公开；本地保留，仅不进 git）
+scripts/t4*.py
+scripts/t5*.py
+scripts/p0*.py
+scripts/p1*.py
+scripts/p2*.py
+scripts/p3*.py
+scripts/brand-corona.py
+scripts/embed-repo*.py
+scripts/set-author.py
+scripts/set-contact.py
+scripts/rule29-and-repack.py
+scripts/fix-uninstall-and-rule29.py
+scripts/migrate-*.py
+scripts/prepare-release.py
+scripts/t52-t53.py
+scripts/t53-scrollbar-hide.py
+
+# 内部开发资料（不公开；本地保留，仅不进 git）
+prototype/
+scripts/t4*.py
+scripts/t5*.py
+scripts/t6*.py
+scripts/p0*.py
+scripts/p1*.py
+scripts/p2*.py
+scripts/p3*.py
+scripts/brand-corona.py
+scripts/embed-repo*.py
+scripts/set-author.py
+scripts/set-contact.py
+scripts/rule29-and-repack.py
+scripts/fix-uninstall-and-rule29.py
+scripts/migrate-*.py
+scripts/prepare-release.py
+scripts/public-surface-cleanup.py
+
+# 发布工具（本机使用，不公开）
+scripts/publish-public-snapshot.py
+scripts/p4*.py
+scripts/p5*.py
+scripts/p6*.py
+scripts/sync-sdk-check.py
+scripts/p4b-mock-host.py
+scripts/p5-legal.py
+scripts/p5-legal.py
+scripts/p5b-align.py
+scripts/adopt-harmony-cla.py
+scripts/backup-internal.ps1
+scripts/release-notes-022.py

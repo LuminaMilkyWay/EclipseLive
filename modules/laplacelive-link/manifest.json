@@ -1,0 +1,24 @@
+{
+  "id": "laplacelive-link",
+  "name": "LaplaceLive-Link",
+  "version": "0.1.1",
+  "author": "LuminaMilkyWay",
+  "homepage": "https://space.bilibili.com/506520149",
+  "sourceUrl": "https://github.com/LuminaMilkyWay/EclipseLive/tree/main/modules/laplacelive-link",
+  "description": "LAPLACE Chat 网页端直连入口（声明式第三方工具）：软件内打开 chat.laplace.live，独立会话保持登录态。",
+  "permissions": [],
+  "dependencies": [],
+  "web": {
+    "url": "https://chat.laplace.live/",
+    "allowedDomains": [
+      "https://chat.laplace.live",
+      "https://laplace.live",
+      "https://laplace.chat",
+      "https://chat.vrp.moe"
+    ],
+    "windowMode": "embedded",
+    "pinned": true
+  },
+  "license": "MIT",
+  "licenseFile": "LICENSE"
+}

@@ -1,0 +1,15 @@
+{
+  "type": "eclipse-style",
+  "moduleId": "example-empty",
+  "styleType": "theme",
+  "version": 1,
+  "createdAt": 0,
+  "coreVersion": "*",
+  "payload": {
+    "config": {},
+    "cssVars": {
+      "--example-accent": "#66d9ff",
+      "--example-bg": "rgba(16, 18, 27, 0.92)"
+    }
+  }
+}
