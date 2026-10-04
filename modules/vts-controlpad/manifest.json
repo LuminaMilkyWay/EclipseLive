@@ -1,0 +1,66 @@
+{
+  "id": "vts-controlpad",
+  "name": "VTS ControlPad",
+  "version": "0.1.6",
+  "author": "LuminaMilkyWay",
+  "homepage": "https://space.bilibili.com/506520149",
+  "sourceUrl": "https://github.com/LuminaMilkyWay/EclipseLive/tree/main/modules/vts-controlpad",
+  "description": "VTube Studio 热键控制台：读取当前模型热键、生成可点按钮、悬浮精简控制窗",
+  "permissions": [
+    "external-websocket",
+    "window-overlay",
+    "global-shortcut"
+  ],
+  "dependencies": [],
+  "entry": "index.js",
+  "config": {
+    "version": 1,
+    "defaults": {
+      "hiddenHotkeyIds": [],
+      "hotkeyOrder": [],
+      "float": {
+        "enabled": false,
+        "hotkeyIds": [],
+        "columns": 3,
+        "screen": "",
+        "x": 100,
+        "y": 100,
+        "width": 360,
+        "height": 240,
+        "bgOpacity": 80,
+        "clickThrough": false,
+        "snapEdges": true,
+        "rememberPosition": true,
+        "toggleThroughHotkey": "CommandOrControl+Shift+V"
+      }
+    }
+  },
+  "events": [
+    "vts-controlpad:state-changed",
+    "vts-controlpad:float-changed"
+  ],
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/vts-controlpad/control"
+    },
+    {
+      "method": "GET",
+      "path": "/vts-controlpad/float"
+    },
+    {
+      "method": "GET",
+      "path": "/vts-controlpad/state"
+    }
+  ],
+  "channels": [
+    "vts-controlpad"
+  ],
+  "web": {
+    "url": "/vts-controlpad/control",
+    "windowMode": "embedded",
+    "pinned": true
+  },
+  "license": "MIT",
+  "licenseFile": "LICENSE"
+}

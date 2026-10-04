@@ -1,0 +1,88 @@
+{
+  "id": "prologue-live",
+  "name": "PrologueType Live",
+  "version": "0.1.10",
+  "author": "LuminaMilkyWay",
+  "homepage": "https://space.bilibili.com/506520149",
+  "sourceUrl": "https://github.com/LuminaMilkyWay/EclipseLive/tree/main/modules/prologue-live",
+  "description": "无声系主播打字机：输入文字经 OBS 浏览器源逐字展示，含悬浮输入窗",
+  "permissions": [
+    "window-overlay",
+    "global-shortcut"
+  ],
+  "dependencies": [],
+  "entry": "index.js",
+  "config": {
+    "version": 1,
+    "defaults": {
+      "textColor": "#ffffff",
+      "fontFamily": "Microsoft YaHei",
+      "fontSize": 28,
+      "typingSpeed": 120,
+      "scrollSpeed": 400,
+      "prefixSymbol": "[",
+      "suffixSymbol": "]",
+      "styleType": "blur-border",
+      "bgColor": "#000000",
+      "borderColor": "#ffffff",
+      "borderWidth": 2,
+      "blurStrength": 16,
+      "opacity": 60,
+      "float": {
+        "enabled": false,
+        "screen": "",
+        "x": 100,
+        "y": 100,
+        "width": 320,
+        "height": 200,
+        "bgOpacity": 80,
+        "textOpacity": 100,
+        "clickThrough": false,
+        "toggleThroughHotkey": "CommandOrControl+Shift+T",
+        "sendHotkey": "CommandOrControl+Shift+S",
+        "bgColor": "#14141a",
+        "textColor": "#ffffff",
+        "borderColor": "#888888",
+        "blurStrength": 12,
+        "fontFamily": "Microsoft YaHei",
+        "fontSize": 16,
+        "snapEdges": true,
+        "rememberPosition": true,
+        "showHistory": true
+      }
+    }
+  },
+  "events": [
+    "prologue-live:queue-changed",
+    "prologue-live:style-changed",
+    "prologue-live:float-changed"
+  ],
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/prologue-live/obs"
+    },
+    {
+      "method": "GET",
+      "path": "/prologue-live/overlay"
+    },
+    {
+      "method": "GET",
+      "path": "/prologue-live/control"
+    },
+    {
+      "method": "GET",
+      "path": "/prologue-live/state"
+    }
+  ],
+  "channels": [
+    "prologue-live"
+  ],
+  "web": {
+    "url": "/prologue-live/control",
+    "windowMode": "embedded",
+    "pinned": true
+  },
+  "license": "MIT",
+  "licenseFile": "LICENSE"
+}

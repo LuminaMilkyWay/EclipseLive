@@ -1,0 +1,39 @@
+{
+  "name": "vtubestudio",
+  "version": "3.12.0",
+  "description": "A TypeScript implementation of the VTube Studio WebSocket API.",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "scripts": {
+    "prepare": "npm run clean && npm run build && npm run bundle && npm run build:docs",
+    "build": "tsc -b ./",
+    "clean": "tsc -b ./ --clean",
+    "bundle": "npm run bundle:esm && npm run bundle:iife",
+    "bundle:esm": "npx esbuild src/index.ts --bundle --minify --sourcemap --format=esm --outfile=lib/esm/vtubestudio.min.js",
+    "bundle:iife": "npx esbuild src/index.ts --bundle --minify --sourcemap --format=iife --global-name=VTubeStudio --outfile=lib/iife/vtubestudio.min.js",
+    "build:docs": "npx typedoc src/index.ts",
+    "publish-patch": "npm version patch && git push && npm publish",
+    "publish-minor": "npm version minor && git push && npm publish",
+    "publish-major": "npm version major && git push && npm publish"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Hawkbat/VTubeStudioJS.git"
+  },
+  "keywords": [
+    "vtstudio",
+    "vtuber",
+    "vtubestudio"
+  ],
+  "author": "Hawkbar",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Hawkbat/VTubeStudioJS/issues"
+  },
+  "homepage": "https://github.com/Hawkbat/VTubeStudioJS#readme",
+  "devDependencies": {
+    "esbuild": "0.20.1",
+    "typedoc": "^0.25.8",
+    "typescript": "^5.3.3"
+  }
+}

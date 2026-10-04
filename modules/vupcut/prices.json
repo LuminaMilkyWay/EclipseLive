@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "currency": "CNY",
+  "asOf": "2026-10-03",
+  "source": "mixed",
+  "note": "价格是易变数据。已核实项带 asOf 与 sourceUrl；未核实项单价一律为 null（请填写或使用在线价目）。估算不含缓存/批处理折扣与阶梯价，因此是上界；实际费用以服务商官方价目为准。",
+  "fxToCny": {},
+  "models": [
+    {
+      "match": "mimo-v2.6-pro",
+      "currency": "CNY",
+      "input": 3.0,
+      "output": 6.0,
+      "cachedInput": 0.025,
+      "unit": "perMTokens",
+      "asOf": "2026-09-21",
+      "sourceUrl": "https://mimo.mi.com/docs/zh-CN/price/pay-as-you-go",
+      "note": "小米 MiMo 实时推理（官方国内定价，每 1M token）。批量推理约为半价（输入 1.50 / 输出 3.00），本表未单独条目。"
+    },
+    {
+      "match": "mimo-v2.6-flash",
+      "currency": "CNY",
+      "input": 1.0,
+      "output": 2.0,
+      "cachedInput": 0.02,
+      "unit": "perMTokens",
+      "asOf": "2026-09-21",
+      "sourceUrl": "https://mimo.mi.com/docs/zh-CN/price/pay-as-you-go",
+      "note": "小米 MiMo 轻量实时推理（每 1M token）。批量推理约半价（0.50 / 1.00）。"
+    },
+    {
+      "match": "mimo-v2.6-pro-ultraspeed",
+      "currency": "CNY",
+      "input": 30.0,
+      "output": 60.0,
+      "cachedInput": 0.25,
+      "unit": "perMTokens",
+      "asOf": "2026-09-21",
+      "sourceUrl": "https://mimo.mi.com/docs/zh-CN/price/pay-as-you-go",
+      "note": "小米 MiMo 极速版（单价高，按需选）。"
+    },
+    {
+      "match": "mimo-v2.5-asr",
+      "currency": "CNY",
+      "perHourAudio": 0.5,
+      "unit": "perHourAudio",
+      "asOf": "2026-09-21",
+      "sourceUrl": "https://mimo.mi.com/docs/zh-CN/price/pay-as-you-go",
+      "note": "小米 MiMo 语音识别：按**输入音频时长**计费（¥0.5/小时，时长精确到秒）。⚠️ 与语言模型的计价单位不同（不是 per token）。Token Plan 套餐口径为 30M Credits/小时音频。"
+    },
+    {
+      "match": "mimo*",
+      "currency": "CNY",
+      "input": null,
+      "output": null,
+      "unit": "perMTokens",
+      "asOf": "2026-09-21",
+      "sourceUrl": "https://mimo.mi.com/docs/zh-CN/price/token-plan",
+      "note": "小米 MiMo 其它型号（如 v2.5 系列将于北京时间 2026-10-21 10:00 下线）⇒ 请填写单价或使用在线价目。"
+    },
+
+    { "match": "deepseek-chat", "currency": "CNY", "input": null, "output": null, "note": "深度求索 DeepSeek（OpenAI 兼容）—— 单价待填或在线更新" },
+    { "match": "deepseek-reasoner", "currency": "CNY", "input": null, "output": null, "note": "深度求索 DeepSeek 推理模型" },
+    { "match": "deepseek*", "currency": "CNY", "input": null, "output": null, "note": "深度求索 DeepSeek 其它型号" },
+
+    { "match": "MiniMax-Text*", "currency": "CNY", "input": null, "output": null, "note": "MiniMax 文本模型" },
+    { "match": "abab*", "currency": "CNY", "input": null, "output": null, "note": "MiniMax abab 系列" },
+
+    { "match": "qwen-max*", "currency": "CNY", "input": null, "output": null, "note": "千问 Qwen-Max（阿里云百炼有 Coding Plan 套餐）" },
+    { "match": "qwen-plus*", "currency": "CNY", "input": null, "output": null, "note": "千问 Qwen-Plus" },
+    { "match": "qwen-turbo*", "currency": "CNY", "input": null, "output": null, "note": "千问 Qwen-Turbo" },
+    { "match": "qwen*", "currency": "CNY", "input": null, "output": null, "note": "千问 Qwen 其它型号" },
+
+    { "match": "moonshot-v1*", "currency": "CNY", "input": null, "output": null, "note": "KIMI / Moonshot（Kimi Code 为套餐制）" },
+    { "match": "kimi*", "currency": "CNY", "input": null, "output": null, "note": "KIMI 新命名" },
+
+    { "match": "glm-4-flash*", "currency": "CNY", "input": null, "output": null, "note": "智谱 GLM-4-Flash（GLM Coding Plan 为套餐制）" },
+    { "match": "glm-4-plus*", "currency": "CNY", "input": null, "output": null, "note": "智谱 GLM-4-Plus" },
+    { "match": "glm*", "currency": "CNY", "input": null, "output": null, "note": "智谱 GLM 其它型号" },
+
+    { "match": "step-1*", "currency": "CNY", "input": null, "output": null, "note": "阶跃星辰 Step-1" },
+    { "match": "step-2*", "currency": "CNY", "input": null, "output": null, "note": "阶跃星辰 Step-2" },
+    { "match": "step*", "currency": "CNY", "input": null, "output": null, "note": "阶跃星辰 Step 其它型号" },
+
+    { "match": "gpt-4o-mini*", "currency": "USD", "input": null, "output": null, "note": "OpenAI gpt-4o-mini（美元计价）。⚠️ ChatGPT 订阅不含 API 额度" },
+    { "match": "gpt-4o*", "currency": "USD", "input": null, "output": null, "note": "OpenAI gpt-4o（美元计价）" },
+    { "match": "gpt-4.1*", "currency": "USD", "input": null, "output": null, "note": "OpenAI gpt-4.1（美元计价）" },
+    { "match": "o1*", "currency": "USD", "input": null, "output": null, "note": "OpenAI o1（美元计价）" },
+    { "match": "o3*", "currency": "USD", "input": null, "output": null, "note": "OpenAI o3（美元计价）" },
+    { "match": "gpt*", "currency": "USD", "input": null, "output": null, "note": "OpenAI 其它型号（美元计价）" },
+
+    { "match": "claude*", "currency": "USD", "input": null, "output": null, "note": "Anthropic Claude（美元计价）。⚠️ Claude Pro/Max 订阅不含 API 额度" },
+    { "match": "gemini*", "currency": "USD", "input": null, "output": null, "note": "Google Gemini（美元计价）。⚠️ Google AI Pro 订阅不含 API 额度" }
+  ]
+}

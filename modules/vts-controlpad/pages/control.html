@@ -1,0 +1,547 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>VTS ControlPad</title>
+<style>
+  /* 模块页 UI 契约（MODULE_UI_CONTRACT.md）：本页是宿主 WebContentsView 内嵌的应用内
+     功能页（非画布豁免），样式一律消费宿主注入的 :root 设计令牌（--r-* / --sp-* /
+     --txt-* / --bg-* / --mat-* …），零硬编码颜色、圆角与间距一律走令牌，
+     不自建主题令牌、不自绘画布底（材质底由宿主槽位提供）。 */
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100vh; }
+  body {
+    font: 14px/1.5 "Rajdhani", "Noto Sans SC", "Source Han Sans SC", "Microsoft YaHei UI", sans-serif;
+    background: transparent; /* 底由宿主槽位呈现，页面自身不绘画布 */
+    color: var(--txt-1);
+    padding: var(--sp-5);
+    /* 页面恰好占满槽位，滚动发生在内部网格，不外扩 */
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  header { flex: none; }
+  h1 { font-size: 18px; margin: 0 0 var(--sp-1); }
+  .sub { color: var(--txt-2); font-size: 12px; margin: 0 0 var(--sp-2); }
+  /* 横幅与设置区都收紧：窗口化时竖向空间要优先留给开关列表（用户反馈下半截看不见）。
+     用户 2026-10-02 拍板 A：分组卡片与宿主 .card 同配方（玻璃材质 + --mat-* + --r-lg）；仍禁 --mat-veil。 */
+  .banner {
+    flex: none; display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap;
+    /* 用户 2026-10-02 拍板 A：内容层与宿主 `.card` **同配方**（玻璃材质），
+     推翻 T36"内容层不用玻璃"的约定 —— 否则档 4 下本页明显比周围"更平"（用户实测反馈）。 */
+  background: var(--card-bg);
+  backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+  -webkit-backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+    border: 1px solid var(--mat-border);
+    box-shadow: var(--mat-edge-light), var(--mat-edge-thick), var(--mat-glow), var(--mat-shadow-1), var(--mat-shadow-2);
+    border-radius: var(--r-lg); padding: var(--sp-1) var(--sp-3); margin-bottom: var(--sp-2);
+  }
+  .banner.ok { border-color: color-mix(in srgb, var(--ok) 32%, transparent); }
+  .banner.warn { border-color: var(--bad-line); }
+  .banner .state { flex: 1; min-width: 140px; font-size: 12px; color: var(--txt-2); }
+  .banner.ok .state { color: var(--ok); }
+  .banner.warn .state { color: var(--bad); }
+  button {
+    padding: var(--sp-2) var(--sp-3); border: 1px solid var(--line-strong);
+    border-radius: var(--r-sm); background: var(--bg-card-2); color: var(--txt-1);
+    cursor: pointer; font: inherit; font-size: 12px;
+  }
+  button:hover { border-color: var(--acc); }
+  /* 网格：**每行 4–6 个**（UI 规范值），列数按可用宽度在 4–6 之间自适应 ——
+     窗口窄时取 4，全屏时取 6，始终落在规范区间内。
+     不采用 auto-fill 无限列（会突破 4–6 的规范值）；页面自身不自造材质底，
+     分组卡片走契约 §2 配方。纵向滚动发生在网格内部。 */
+  .grid {
+    flex: 1; min-height: 0; overflow-y: auto; align-content: start;
+    display: grid; gap: var(--sp-2);
+    grid-template-columns: repeat(var(--cols, 5), minmax(0, 1fr));
+    /* 用户 2026-10-02 拍板 A：内容层与宿主 `.card` **同配方**（玻璃材质），
+     推翻 T36"内容层不用玻璃"的约定 —— 否则档 4 下本页明显比周围"更平"（用户实测反馈）。 */
+  background: var(--card-bg);
+  backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+  -webkit-backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+    border: 1px solid var(--mat-border);
+    box-shadow: var(--mat-edge-light), var(--mat-edge-thick), var(--mat-glow), var(--mat-shadow-1), var(--mat-shadow-2);
+    border-radius: var(--r-lg);
+    padding: var(--sp-3);
+  }
+  /* ⚠️ 必须显式声明：`.grid`/`.empty` 自带 display，会**覆盖 [hidden] 的 display:none**
+     （实测症状：空态文字透在网格下方）。凡自带 display 的元素都要补这一条。 */
+  .grid[hidden],
+  .empty[hidden] {
+    display: none;
+  }
+  .hk {
+    display: flex; flex-direction: column; gap: var(--sp-1); align-items: flex-start;
+    min-width: 0; padding: var(--sp-3); text-align: left; cursor: pointer;
+    border: 1px solid var(--line-strong); border-radius: var(--r-md);
+    background: var(--bg-card-2); color: var(--txt-1); font: inherit;
+  }
+  .hk:hover { border-color: var(--acc); }
+  .hk:active { transform: scale(0.98); }
+  .hk .nm { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+  .hk .tg { font-size: 11px; color: var(--txt-2); }
+  .hk[data-kind="toggle"] .tg { color: var(--acc); }
+  /* 开关态：开=强调色描边（明显），关=常规，未知=中性破折号（不猜） */
+  .hk[data-kind="toggle"][data-state="on"] {
+    border-color: var(--acc);
+    background: color-mix(in srgb, var(--acc) 16%, var(--bg-card-2));
+  }
+  .hk[data-kind="toggle"][data-state="on"] .st { color: var(--acc); }
+  .hk .st { font-size: 11px; color: var(--txt-2); }
+  /* 触发反馈：成功 / 稍候（节流）/ 失败 */
+  .hk.hit { border-color: color-mix(in srgb, var(--ok) 55%, transparent); }
+  .hk.hint { border-color: var(--acc); }
+  .hk.bad { border-color: var(--bad-line); }
+  .empty {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: var(--sp-2); padding: var(--sp-5); text-align: center; color: var(--txt-2); font-size: 13px;
+  }
+  .empty .big { font-size: 15px; color: var(--txt-1); }
+  /* 悬浮窗设置区：折叠以不挤占网格；内容层标准材质（T36） */
+  .box {
+    flex: none; margin-bottom: var(--sp-2); padding: var(--sp-1) var(--sp-3);
+    /* 用户 2026-10-02 拍板 A：内容层与宿主 `.card` **同配方**（玻璃材质），
+     推翻 T36"内容层不用玻璃"的约定 —— 否则档 4 下本页明显比周围"更平"（用户实测反馈）。 */
+  background: var(--card-bg);
+  backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+  -webkit-backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+    border: 1px solid var(--mat-border);
+    box-shadow: var(--mat-edge-light), var(--mat-edge-thick), var(--mat-glow), var(--mat-shadow-1), var(--mat-shadow-2);
+    border-radius: var(--r-lg);
+  }
+  .box > summary { cursor: pointer; font-size: 12px; color: var(--txt-2); }
+  .box .row { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; margin-top: var(--sp-2); }
+  .box label.tiny { width: auto; font-size: 12px; color: var(--txt-2); }
+  .box label.cb { width: auto; display: flex; align-items: center; gap: var(--sp-1); font-size: 12px; color: var(--txt-2); }
+  .box input[type="checkbox"] { accent-color: var(--acc); }
+  .box input[type="text"], .box select {
+    background: var(--bg-card-2); color: var(--txt-1); border: 1px solid var(--line);
+    border-radius: var(--r-md); padding: var(--sp-1) var(--sp-2); font: inherit; min-width: 92px;
+  }
+  .box input[type="range"] { flex: 1; min-width: 90px; accent-color: var(--acc); }
+  .box .val { font-size: 12px; color: var(--txt-2); min-width: 34px; text-align: right; }
+  .picks {
+    margin-top: var(--sp-2); max-height: 132px; overflow-y: auto;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--sp-1);
+  }
+  .picks label {
+    width: auto; display: flex; align-items: center; gap: var(--sp-1);
+    font-size: 12px; color: var(--txt-2); min-width: 0;
+  }
+  .picks .nm2 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* 溢出提示：只有内容确实超出一屏时才显示（避免常驻噪声） */
+  .more { flex: none; margin: var(--sp-1) 0 0; font-size: 11px; color: var(--acc); }
+  .more[hidden] { display: none; }
+  .hint { margin: var(--sp-2) 0 0; font-size: 11px; color: var(--bad); }
+  .hint:empty { display: none; }
+  .foot { flex: none; display: flex; align-items: center; gap: var(--sp-2); margin-top: var(--sp-2); }
+  .note { flex: 1; margin: 0; font-size: 11px; color: var(--txt-2); }
+  .note.good { color: var(--ok); }
+  .note.bad { color: var(--bad); }
+</style>
+</head>
+<body>
+<header>
+  <h1>VTS ControlPad</h1>
+  <p class="sub" id="model">VTube Studio 热键控制台</p>
+</header>
+
+<div class="banner" id="banner">
+  <span class="state" id="state">正在连接…</span>
+  <button type="button" id="refresh">刷新热键</button>
+</div>
+
+<details class="box" id="floatbox">
+  <summary>悬浮窗设置</summary>
+  <div class="row">
+    <label class="cb"><input type="checkbox" id="f-enabled">启用悬浮窗</label>
+    <label class="cb"><input type="checkbox" id="f-through">鼠标穿透</label>
+    <label class="cb"><input type="checkbox" id="f-snap">边缘吸附</label>
+    <label class="cb"><input type="checkbox" id="f-remember">记住位置</label>
+  </div>
+  <div class="row">
+    <label class="tiny" for="f-cols">每行按钮数</label>
+    <select id="f-cols">
+      <option value="2">2</option>
+      <option value="3">3</option>
+      <option value="4">4</option>
+    </select>
+    <label class="tiny" for="f-op">背景不透明度</label>
+    <input type="range" id="f-op" min="0" max="100" step="5">
+    <span class="val" id="f-op-val"></span>
+  </div>
+  <div class="row">
+    <label class="tiny" for="f-key">穿透快捷键</label>
+    <input type="text" id="f-key" spellcheck="false" placeholder="CommandOrControl+Shift+V">
+  </div>
+  <p class="hint" id="f-error"></p>
+  <div class="row"><span class="tiny">上悬浮窗的热键（勾选）</span></div>
+  <div class="picks" id="f-picks"></div>
+</details>
+
+<div class="grid" id="grid" hidden></div>
+<p class="more" id="more" hidden>↕ 列表还有更多，向下滚动查看</p>
+<div class="empty" id="empty">
+  <span class="big" id="empty-title">正在连接 VTube Studio…</span>
+  <span id="empty-hint">若未安装或未开启 API，将保持此状态</span>
+</div>
+<div class="foot">
+  <p class="note" id="note"></p>
+  <span class="note" id="count"></span>
+</div>
+
+<script>
+(() => {
+  'use strict'
+  const CHANNEL = 'vts-controlpad'
+  const token = new URLSearchParams(location.search).get('token') ?? ''
+  const wsUrl =
+    (location.protocol === 'https:' ? 'wss://' : 'ws://') +
+    location.host + '/ws?token=' + encodeURIComponent(token)
+  const stateUrl = '/vts-controlpad/state' + location.search
+
+  const $ = (id) => document.getElementById(id)
+  /** 已渲染的热键签名：只有列表本身变化时才重建 DOM（100 个按钮不做无谓全量重排）。 */
+  let signature = ''
+  let flashTimer = null
+
+  function statusText(s) {
+    switch (s.status) {
+      case 'authenticated':
+        return s.model && s.model.name ? '已连接 · ' + s.model.name : '已连接'
+      case 'connecting': return '正在连接 VTube Studio…'
+      case 'awaiting-approval': return '等待你在 VTube Studio 中授权'
+      case 'unreachable': return 'VTube Studio 未运行或 API 未开启'
+      case 'denied': return '授权被拒绝'
+      case 'failed': return '连接异常'
+      default: return '未连接'
+    }
+  }
+
+  function emptyTitle(s) {
+    switch (s.status) {
+      case 'awaiting-approval': return '请在 VTube Studio 中点击「允许」'
+      case 'unreachable': return 'VTube Studio 未运行或 API 未开启'
+      case 'denied': return '授权被拒绝'
+      case 'failed': return '连接异常'
+      default: return '正在连接 VTube Studio…'
+    }
+  }
+
+  function emptyHint(s) {
+    switch (s.status) {
+      case 'awaiting-approval':
+        return '切换到 VTube Studio 窗口，在弹出的授权提示里点击「允许」'
+      case 'unreachable':
+        return '请启动 VTube Studio 并在设置中开启 API（端口 8001）；连接会自动恢复，无需重启软件'
+      case 'denied':
+        return '可在 VTube Studio 的插件设置中重新允许本插件，然后点击「刷新热键」'
+      case 'failed':
+        return String(s.detail || '请稍后重试，或检查 VTube Studio 的 API 设置')
+      default:
+        return '若未安装或未开启 API，将保持此状态'
+    }
+  }
+
+  /** 反馈样式与文案（结果分类由模块侧 lib/trigger.js 给出，页面只负责呈现）。 */
+  function resultClass(result) {
+    if (result === 'ok') return 'hit'
+    if (result === 'cooldown' || result === 'queue-full') return 'hint'
+    return 'bad'
+  }
+
+  function noteClass(result) {
+    if (result === 'ok') return 'note good'
+    if (result === 'cooldown' || result === 'queue-full') return 'note'
+    return 'note bad'
+  }
+
+  function buildGrid(hks) {
+    const grid = $('grid')
+    grid.textContent = ''
+    for (const h of hks) {
+      const btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'hk'
+      btn.dataset.id = String(h.id)
+      btn.dataset.kind = h.kind === 'toggle' ? 'toggle' : 'trigger'
+      btn.dataset.state = 'unknown'
+      btn.title = h.description || h.name
+      const nm = document.createElement('span')
+      nm.className = 'nm'
+      nm.textContent = String(h.name)
+      const tg = document.createElement('span')
+      tg.className = 'tg'
+      // 开关式/触发式由 VTS 的动作种类派生（见 lib/hotkeys.js）
+      tg.textContent = h.kind === 'toggle' ? '开关式' : '触发式'
+      btn.append(nm, tg)
+      if (h.kind === 'toggle') {
+        const st = document.createElement('span')
+        st.className = 'st'
+        st.textContent = '状态未知'
+        btn.append(st)
+      }
+      grid.append(btn)
+    }
+  }
+
+  /** 只更新状态与反馈，不重建 DOM。 */
+  function applyStates(states) {
+    const map = states && typeof states === 'object' ? states : {}
+    for (const btn of document.querySelectorAll('.hk[data-kind="toggle"]')) {
+      const v = map[btn.dataset.id]
+      const state = v === 'on' ? 'on' : v === 'off' ? 'off' : 'unknown'
+      btn.dataset.state = state
+      const st = btn.querySelector('.st')
+      if (st) st.textContent = state === 'on' ? '开' : state === 'off' ? '关' : '状态未知'
+    }
+  }
+
+  function applyResult(r) {
+    const note = $('note')
+    if (flashTimer) {
+      clearTimeout(flashTimer)
+      flashTimer = null
+    }
+    for (const btn of document.querySelectorAll('.hk')) btn.classList.remove('hit', 'hint', 'bad')
+    if (!r || typeof r !== 'object') {
+      note.className = 'note'
+      note.textContent = ''
+      return
+    }
+    const btn = document.querySelector('.hk[data-id="' + String(r.id).replace(/"/g, '') + '"]')
+    const cls = resultClass(r.result)
+    if (btn) {
+      btn.classList.add(cls)
+      flashTimer = setTimeout(() => btn.classList.remove(cls), 900)
+    }
+    note.className = noteClass(r.result)
+    note.textContent =
+      r.result === 'ok' ? '已触发' : String(r.message || '') || '触发失败'
+  }
+
+  function render(s) {
+    const banner = $('banner')
+    banner.className = 'banner' +
+      (s.status === 'authenticated' ? ' ok'
+        : (s.status === 'unreachable' || s.status === 'denied' || s.status === 'failed' ? ' warn' : ''))
+    $('state').textContent = statusText(s) + (s.detail && s.status !== 'authenticated' ? ' · ' + s.detail : '')
+    $('model').textContent =
+      s.model && s.model.loaded ? '当前模型：' + (s.model.name || '未命名') : 'VTube Studio 热键控制台'
+
+    const grid = $('grid')
+    const empty = $('empty')
+    const hks = Array.isArray(s.hotkeys) ? s.hotkeys : []
+
+    if (s.status !== 'authenticated' || hks.length === 0) {
+      grid.hidden = true
+      grid.textContent = ''
+      signature = ''
+      empty.hidden = false
+      if (s.status !== 'authenticated') {
+        $('empty-title').textContent = emptyTitle(s)
+        $('empty-hint').textContent = emptyHint(s)
+      } else {
+        $('empty-title').textContent = '当前模型没有热键'
+        $('empty-hint').textContent = '在 VTube Studio 里为该模型添加热键后，点击「刷新热键」'
+      }
+      $('count').textContent = ''
+      $('note').textContent = ''
+      const hint = $('more')
+      if (hint) hint.hidden = true
+      renderFloat(s)
+      return
+    }
+
+    empty.hidden = true
+    grid.hidden = false
+    // 列数由宽度决定（见 .grid 的 auto-fill），签名里不再需要列数
+    const sig = hks.map((h) => h.id + ':' + h.kind).join('|')
+    if (sig !== signature) {
+      signature = sig
+      buildGrid(hks)
+    }
+    applyStates(s.states)
+    applyResult(s.lastResult)
+    renderFloat(s)
+    $('count').textContent = hks.length + ' 个热键'
+    relayout()
+    // 布局落定后再算一次（渲染当刻的布局未必是最终布局，见 updateMoreHint 注释）
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(relayout)
+  }
+
+  /**
+   * 列数自适应但**不越规范**：每行 4–6 个（UI 规范值），按可用宽度选，
+   * 窄窗取 4、全屏取 6。用近似按钮最小宽度 190px 估算。
+   */
+  function layoutGrid() {
+    const grid = $('grid')
+    if (!grid || grid.hidden) return
+    const width = grid.clientWidth
+    if (width <= 0) return
+    const cols = Math.min(6, Math.max(4, Math.round(width / 190)))
+    grid.style.setProperty('--cols', String(cols))
+  }
+
+  /**
+   * 溢出提示：只有内容确实超出一屏时才显示 —— 用户反馈"窗口化时下面的开关没人知道存在"，
+   * 故给出显式信号；不溢出时不显示，避免常驻噪声。
+   *
+   * 注意：**不能只在渲染那一刻算一次**。渲染时的布局未必是最终布局
+   * （字体落版、文案换行、设置区展开都会改变可用高度），实测踩到过
+   * "渲染时判定不溢出、之后溢出但没人重算"。故除渲染后调用外，
+   * 还用 ResizeObserver 盯住网格盒子，外加一次 rAF 兜底。
+   */
+  function updateMoreHint() {
+    const grid = $('grid')
+    const hint = $('more')
+    if (!grid || grid.hidden) {
+      if (hint) hint.hidden = true
+      return
+    }
+    const overflow = grid.scrollHeight - grid.clientHeight > 4
+    if (hint) hint.hidden = !overflow
+  }
+
+  /** 尺寸变化：重算列数（4–6）与溢出提示。 */
+  function relayout() {
+    layoutGrid()
+    updateMoreHint()
+  }
+
+  /** 网格尺寸变化（窗口/槽位/行数变化）时重算列数与溢出提示。 */
+  function watchGridOverflow() {
+    const grid = $('grid')
+    if (grid && typeof ResizeObserver === 'function') {
+      try {
+        new ResizeObserver(() => relayout()).observe(grid)
+      } catch {
+        /* 观察失败不影响功能：下面还有一次性调用与 resize 监听 */
+      }
+    }
+  }
+
+  /** 悬浮窗设置区：控件值来自状态快照，改动经通道写回（模块侧白名单 + 钳制）。 */
+  function renderFloat(s) {
+    const f = s.float && typeof s.float === 'object' ? s.float : {}
+    const picks = Array.isArray(s.floatHotkeys) ? s.floatHotkeys : []
+    const picked = new Set(picks.map((h) => String(h.id)))
+    const active = document.activeElement
+
+    const set = (id, prop, value) => {
+      const el = $(id)
+      if (!el || el === active) return // 用户正在操作时不要覆盖
+      el[prop] = value
+    }
+    set('f-enabled', 'checked', f.enabled === true)
+    set('f-through', 'checked', f.clickThrough === true)
+    set('f-snap', 'checked', f.snapEdges !== false)
+    set('f-remember', 'checked', f.rememberPosition !== false)
+    set('f-cols', 'value', String(Number(f.columns) || 3))
+    set('f-op', 'value', String(Number(f.bgOpacity) || 0))
+    $('f-op-val').textContent = (Number(f.bgOpacity) || 0) + '%'
+    set('f-key', 'value', String(f.toggleThroughHotkey || ''))
+
+    const err = [f.error, f.shortcutError].filter(Boolean).join(' · ')
+    $('f-error').textContent = err
+
+    // 勾选列表：热键集合变化才重建
+    const hks = Array.isArray(s.hotkeys) ? s.hotkeys : []
+    const sig = hks.map((h) => h.id).join('|')
+    const box = $('f-picks')
+    if (box.dataset.sig !== sig) {
+      box.dataset.sig = sig
+      box.textContent = ''
+      for (const h of hks) {
+        const label = document.createElement('label')
+        const cb = document.createElement('input')
+        cb.type = 'checkbox'
+        cb.value = String(h.id)
+        cb.checked = picked.has(String(h.id))
+        const nm = document.createElement('span')
+        nm.className = 'nm2'
+        nm.textContent = String(h.name)
+        label.append(cb, nm)
+        box.append(label)
+      }
+      box.hidden = hks.length === 0
+    }
+  }
+
+  function pickedIds() {
+    return [...document.querySelectorAll('#f-picks input:checked')].map((el) => el.value)
+  }
+
+  function sendFloat(changes) {
+    send({ type: 'float-config', changes })
+  }
+
+  for (const id of ['f-enabled', 'f-through', 'f-snap', 'f-remember']) {
+    $(id).addEventListener('change', () => {
+      const map = { 'f-enabled': 'enabled', 'f-through': 'clickThrough', 'f-snap': 'snapEdges', 'f-remember': 'rememberPosition' }
+      sendFloat({ [map[id]]: $(id).checked })
+    })
+  }
+  $('f-cols').addEventListener('change', () => sendFloat({ columns: Number($('f-cols').value) }))
+  $('f-op').addEventListener('change', () => sendFloat({ bgOpacity: Number($('f-op').value) }))
+  $('f-op').addEventListener('input', () => {
+    $('f-op-val').textContent = Number($('f-op').value) + '%'
+  })
+  $('f-key').addEventListener('change', () => sendFloat({ toggleThroughHotkey: $('f-key').value.trim() }))
+  $('f-picks').addEventListener('change', (ev) => {
+    if (ev.target && ev.target.type === 'checkbox') sendFloat({ hotkeyIds: pickedIds() })
+  })
+
+  /** 全局快捷键区：每个热键一行输入；冲突/不可用的原因由模块给出并就地显示。 */
+  function send(payload) {
+    const ws = window.__vtsWs
+    if (ws && ws.readyState === 1) {
+      ws.send(JSON.stringify({ channel: CHANNEL, payload }))
+    } else {
+      void load()
+    }
+  }
+
+  $('refresh').addEventListener('click', () => send({ type: 'refresh' }))
+
+  // 窗口/槽位尺寸变化会改变列数（4–6）与行数 ⇒ 重算
+  window.addEventListener('resize', () => relayout())
+  watchGridOverflow()
+
+  // 事件委托：网格重绘后依然有效
+  $('grid').addEventListener('click', (ev) => {
+    const btn = ev.target && ev.target.closest ? ev.target.closest('.hk') : null
+    if (!btn) return
+    send({ type: 'trigger', id: btn.dataset.id })
+  })
+
+  function load() {
+    return fetch(stateUrl)
+      .then((r) => r.json())
+      .then(render)
+      .catch(() => {})
+  }
+
+  const ws = new WebSocket(wsUrl)
+  window.__vtsWs = ws
+  ws.onmessage = (ev) => {
+    let msg
+    try {
+      msg = JSON.parse(ev.data)
+    } catch {
+      return
+    }
+    if (!msg || msg.channel !== CHANNEL) return
+    const p = msg.payload
+    if (p && typeof p === 'object' && p.type === 'state') render(p)
+  }
+  ws.onclose = () => {
+    setTimeout(() => location.reload(), 1000)
+  }
+
+  void load()
+})()
+</script>
+</body>
+</html>

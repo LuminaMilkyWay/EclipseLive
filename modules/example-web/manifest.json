@@ -1,0 +1,21 @@
+{
+  "id": "example-web",
+  "name": "Example Web Tool",
+  "version": "0.1.0",
+  "author": "EclipseLIVE",
+  "description": "参考网页工具模块：纯声明式（无业务代码），由内嵌容器加载 example.com。",
+  "permissions": [
+    "network-access"
+  ],
+  "dependencies": [],
+  "web": {
+    "url": "https://example.com/",
+    "allowedDomains": [
+      "https://example.com"
+    ],
+    "windowMode": "embedded",
+    "pinned": true
+  },
+  "license": "MIT",
+  "licenseFile": "LICENSE"
+}

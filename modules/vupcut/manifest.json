@@ -1,0 +1,43 @@
+{
+  "id": "vupcut",
+  "name": "VupCutCode",
+  "version": "0.1.0",
+  "author": "LuminaMilkyWay",
+  "description": "批量粗剪切片：导入录像与弹幕，转写、找高光、导出带字幕的 MP4（纯本地优先）",
+  "license": "AGPL-3.0-or-later",
+  "licenseFile": "LICENSE",
+  "permissions": ["file-read", "file-write", "subprocess", "network-access"],
+  "dependencies": [],
+  "entry": "index.js",
+  "nav": { "level": 1, "after": "obs-stream", "order": 20, "immersive": true },
+  "web": { "url": "/vupcut/control", "windowMode": "embedded", "pinned": true },
+  "routes": [
+    { "method": "GET", "path": "/vupcut/control" },
+    { "method": "GET", "path": "/vupcut/state" },
+    { "method": "GET", "path": "/vupcut/providers" },
+    { "method": "POST", "path": "/vupcut/config" },
+    { "method": "POST", "path": "/vupcut/key" },
+    { "method": "POST", "path": "/vupcut/prices/refresh" },
+    { "method": "GET", "path": "/vupcut/sessions" },
+    { "method": "GET", "path": "/vupcut/job" },
+    { "method": "POST", "path": "/vupcut/run" },
+    { "method": "POST", "path": "/vupcut/job/cancel" },
+    { "method": "POST", "path": "/vupcut/export" },
+    { "method": "POST", "path": "/vupcut/mark" },
+    { "method": "GET", "path": "/vupcut/readiness" }
+  ],
+  "config": {
+    "version": 1,
+    "defaults": {
+      "paths": { "recordings": "", "danmaku": "", "output": "", "models": "", "tmp": "" },
+      "network": { "enabled": false, "allowHosts": [], "startupDelayMs": 10000 },
+      "limits": { "paygCny": 2, "planPct": 20 },
+      "provider": null,
+      "model": null,
+      "asr": { "model": "", "baseUrl": "", "path": "", "language": "zh", "sliceSec": 600 },
+      "score": { "mode": "api", "minScore": 60, "minGapSec": 3, "maxClips": 20, "chunkSize": 40, "overlap": 4 },
+      "export": { "mode": "copy", "container": "mp4", "burnSubtitle": false, "vertical": false, "crf": 20, "preset": "veryfast" },
+      "test": { "enabled": false, "fixtures": "", "fakeAsr": false, "fakeFfmpeg": false, "fakeLlm": false }
+    }
+  }
+}

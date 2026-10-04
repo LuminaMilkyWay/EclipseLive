@@ -1,0 +1,97 @@
+# NOTICE · 版权归属与协议边界
+
+EclipseLIVE（以下简称"本项目"）采用**分层授权**：核心采用 AGPL-3.0-or-later，
+接口、模板与示例采用 MIT，官方模块采用 MIT。
+
+本文件是**协议边界的权威摘要**。若本摘要与各目录内的 `LICENSE` 文件冲突，
+以**该目录内的 `LICENSE` 文件**为准；许可证全文以官方文本为准。
+
+---
+
+## 1. 版权归属
+
+- 核心程序、宿主界面、模块机制、事件总线、配置中心、权限系统、本地服务网关、
+  OBS 桥接、样式包服务、模块包服务、网页工具容器、外部 WebSocket 客户端、
+  布局模式管理等：**Copyright (C) 2026 LuminaMilkyWay 及其贡献者**。
+- 各模块的版权归**该模块作者**所有（见模块包内 `LICENSE` 与 `manifest.license`）。
+
+## 2. 目录 → 协议对照表（权威）
+
+| 路径 | 协议 | SPDX |
+| --- | --- | --- |
+| `src/main/**`（含 `src/main/core/**` 全部核心服务） | AGPL-3.0-or-later | `AGPL-3.0-or-later` |
+| `src/preload/**` | AGPL-3.0-or-later | `AGPL-3.0-or-later` |
+| `src/renderer/**` | AGPL-3.0-or-later | `AGPL-3.0-or-later` |
+| `src/shared/**` | AGPL-3.0-or-later | `AGPL-3.0-or-later` |
+| **`src/contracts/**`** | **MIT**（仅接口定义；**不得含实现**） | `MIT` |
+| **`templates/**`** | **MIT** | `MIT` |
+| `modules/example-empty/**`、`modules/example-web/**` | MIT | `MIT` |
+| **官方模块**（`modules/*`） | **以各模块目录内 `LICENSE` 为准**：多数为 MIT，`modules/vupcut` 为 **AGPL-3.0-or-later** | 见各模块 `LICENSE` |
+| `modules/*/vendor/**` | **保留其原有协议**（不得重许可） | 见各 `vendor` 目录 |
+| `tests/**`、`scripts/**` | AGPL-3.0-or-later | `AGPL-3.0-or-later` |
+| **`sdk/**`**（模块作者入口；见 `sdk/LICENSE`） | **MIT** | `MIT` |
+| **对外文档**：`docs/**`（含 `docs/cla/**`）、根级契约与规范类文档（如 `MODULE_UI_CONTRACT.md`、`ARCHITECTURE.md`） | **MIT**（便于模块作者与集成方自由复制引用） | `MIT` |
+| **内部文档**：`docs/internal/**`、`docs/legal/**` | 内部资产，**不对外授权**（且不进入公开仓库） | — |
+| `assets/**`、`build/**` | AGPL-3.0-or-later | `AGPL-3.0-or-later` |
+
+> 完整条款见根目录 [`LICENSE`](LICENSE)（AGPL-3.0）、
+> [`src/contracts/LICENSE`](src/contracts/LICENSE) 与 [`templates/LICENSE`](templates/LICENSE)（MIT）。
+
+## 3. 模块作者须知（重要）
+
+1. **你的模块是你的作品**：模块通过 `src/contracts/` 中的公共接口与事件总线与核心通信，
+   不复制核心代码、不链接核心内部符号，因此**不因调用接口而成为核心的衍生作品**。
+2. **你可以自由选择模块协议**，包括 MIT、Apache-2.0、商业专有协议或闭源收费；
+   官方不干涉，也不要求你开源。
+3. **官方模块采用 MIT**，可作为参考实现自由学习与改造（须保留其版权与许可声明）。
+4. 模块包内**必须**包含 `LICENSE`，且 `manifest.json` **应当**声明 `license`（SPDX 标识符）。
+   未声明协议的模块会被标注为 **UNLICENSED（未声明）**——核心不会替作者授权。
+5. **不得**使用 `EclipseLIVE` 名称、图标或暗示官方背书，详见 [`TRADEMARK.md`](TRADEMARK.md)。
+
+## 4. 商业使用
+
+- **遵守 AGPL-3.0 即可免费商用**（包括通过 AGPL §13 的要求：向网络用户提供对应源码）。
+- 需要**闭源分发**或不愿承担 AGPL §13 义务的组织，可申请商业授权，见
+  [`COMMERCIAL_LICENSE.md`](COMMERCIAL_LICENSE.md)。
+
+## 5. 第三方组件
+
+本项目内嵌或依赖的第三方组件（例如 `modules/vts-controlpad/vendor/` 下的
+VTube Studio 客户端库）**保留其原有许可证**，其版权归各自作者所有。
+分发时须一并保留这些许可证全文。
+本项目随仓库提供 [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)，逐项列出安装包内
+包含的第三方组件及其许可证；有机械守卫（`tests/unit/license-coverage.spec.ts`）保证它
+**不会与 `package.json` 的依赖脱节** ✓。
+
+## 6. 免责声明
+
+本项目按"现状"提供，不附带任何明示或默示的担保。详见 AGPL-3.0 第 15、16 条。
+
+---
+
+*本文件是协议边界的摘要，不构成法律意见。具体适用请咨询专业律师。*
+
+## 7. 联系方式
+
+- 作者 / 版权持有人：**LuminaMilkyWay**
+- 邮箱：**1522464250@qq.com**（商业授权、协议疑问、安全报告）
+- 主页：<https://space.bilibili.com/506520149>
+- **源码仓库**：<https://github.com/LuminaMilkyWay/EclipseLive>（AGPL-3.0 要求的对应源码入口）
+- 问题反馈 / 商业授权申请：<https://github.com/LuminaMilkyWay/EclipseLive/issues>
+
+ NOTICE · 版权归属与协议边界
+
+EclipseLIVE（以下简称"本项目"）采用**分层授权**：核心采用 AGPL-3.0-or-later，
+接口、模板与示例采用 MIT，官方模块采用 MIT。
+
+本文件是**协议边界的权威摘要**。若本摘要与各目录内的 `LICENSE` 文件冲突，
+以**该目录内的 `LICENSE` 文件**为准；许可证全文以官方文本为准。
+
+---
+
+## 1. 版权归属
+
+- 核心程序、宿主界面、模块机制、事件总线、配置中心、权限系统、本地服务网关、
+  OBS 桥接、样式包服务、模块包服务、网页工具容器、外部 WebSocket 客户端、
+  布局模式管理等：**Copyright (C) 2026 LuminaMilkyWay 及其贡献者**。
+- 各模块的版权归**该模块作者**所有（见模块包内 `LICENSE` 与 `manifest.license`）。

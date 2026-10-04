@@ -1,0 +1,3149 @@
+@import './motion.css';
+
+/* 全局字体（T36）：拉丁/数字 = Rajdhani（几何半窄，OFL），中文 = 思源黑体
+   （Source Han Sans SC = Noto Sans SC 可变字体，OFL）。本地打包于 `src/renderer/src/assets/fonts`，
+   零联网加载（AI_RULES §11）；字重映射：标题 700–900 / 正文与标签 400–500。
+   拉丁字符先命中 Rajdhani，CJK 回退思源黑体，兜底系统黑体。
+
+   历史 bug：原先字体在 public/fonts，此处写 url('fonts/...')——Vite 解析失败后原样保留，
+   而打包后本文件位于 assets/ 子目录，运行时被解析为 assets/fonts/...（不存在）→ 字体 404、
+   静默回退系统字体；开发机装有同名系统字体时完全看不出来。现已移入 src/assets 交由 Vite
+   构建期解析并重写 URL。 */
+@font-face {
+  font-family: 'Rajdhani';
+  src: url('./assets/fonts/Rajdhani-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Rajdhani';
+  src: url('./assets/fonts/Rajdhani-Medium.ttf') format('truetype');
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Rajdhani';
+  src: url('./assets/fonts/Rajdhani-SemiBold.ttf') format('truetype');
+  font-weight: 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Rajdhani';
+  src: url('./assets/fonts/Rajdhani-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'SourceHanSansSC';
+  src: url('./assets/fonts/SourceHanSansSC-VF.ttf') format('truetype-variations');
+  font-weight: 100 900;
+  font-display: swap;
+}
+/* 设计令牌：全站样式一律走 CSS 变量（需求文档硬性规定）。
+   分层：尺寸层（本块）→ 主题层（[data-theme=…]）→ 强调色层（[data-accent=…]）
+   → 材质层（三档预设，同名变量只改值）；
+   颜色字面量只允许出现在令牌块（单测断言强制）。 */
+:root {
+  /* T38：DOCK 任务栏高度 —— 必须与 src/shared/layout.ts 的 DOCK_HEIGHT_PX 一致（守卫锁定） */
+  --dock-h: 48px;
+  /* 非线性（弹簧类）缓动 —— 零依赖：overshoot 用 cubic-bezier，真弹簧用采样后的 linear()。
+     参考 ease-master（https://github.com/satishkumarsajjan/ease-master）与 neo 的揭示动画范式。 */
+  --ease-out-back: cubic-bezier(0.34, 1, 0.64, 1); /* T46：大面板不做回弹（用户：过冲太夸张） */
+  /* T45 修订：面板级动效**不要过冲**（用户反馈"弹得太夸张"）—— 快出慢入的克制曲线 */
+  --ease-emphasized: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: linear(
+    0, 0.009, 0.035, 0.078, 0.136, 0.207, 0.289, 0.38, 0.477, 0.577, 0.677, 0.774, 0.865, 0.947,
+    1.018, 1.077, 1.123, 1.155, 1.174, 1.181, 1.176, 1.161, 1.137, 1.107, 1.072, 1.035, 0.999,
+    0.964, 0.933, 0.906, 0.885, 0.87, 0.861, 0.857, 0.859, 0.865, 0.875, 0.888, 0.903, 0.919,
+    0.936, 0.952, 0.967, 0.98, 0.991, 0.999, 1.005, 1.008, 1.009, 1.008, 1.006, 1.003, 1.001, 1
+  );
+  /* 揭示/收起（Dock 从底边滑出）：入场略过冲、退场快而稳 */
+  --ease-dock-reveal: var(--ease-out-back);
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 24px;
+  /* 胶囊档（徽章/开关轨道等全圆端元素）——禁止出现 999px 数字字面量 */
+  --r-pill: 999px;
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  /* 半档：16 与 24 之间的 4px 倍数，用于卡片内边距/浮层等中间节奏 */
+  --sp-4h: 20px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+  --fs-scale: 1;
+  /* 动效令牌（T-A1）：Fluent 风格非线性缓动 + 时长四档。
+     缓动语义：decelerate = 进入（快起慢收）；accelerate = 退出（慢起快收）；
+     standard = 状态变化与材质/主题切换。
+     时长语义：fast = 退出与微交互；normal = 浮层；enter = 进入（页面/标签）；
+     slow = 材质、主题、底图切换。
+     禁止 linear（进度条与加载旋转除外——当前项目无进度条组件，加载 spinner 是唯一豁免）。 */
+  --ease-standard: cubic-bezier(0.33, 0, 0.67, 1);
+  --ease-decelerate: cubic-bezier(0.1, 0.9, 0.2, 1);
+  --ease-accelerate: cubic-bezier(0.7, 0, 0.3, 1);
+  --duration-fast: 120ms;
+  --duration-normal: 180ms;
+  --duration-enter: 200ms;
+  --duration-slow: 250ms;
+  /* 加载 spinner 的显式例外：持续旋转不属于"转场"，故不适用 ≤300ms 的克制上限，
+     也不适用非线性缓动。把它写成令牌（而非在守卫里开特例），例外因此被显式登记。 */
+  --ease-linear: linear;
+  --duration-spin: 600ms;
+  /* 列表项错峰的步长（T-A6）：规范区间 20–30ms */
+  --duration-stagger: 24ms;
+  /* T45：面板级动效时长（侧栏收放本身） */
+  --duration-panel: 320ms;
+  /* T45 修订 4（用户实测）：**菜单收放与面板列宽必须同长**，否则观感"面板展开太快"。
+     收起路径整体 = 延时 + 时长；面板列宽用同一个总时长 ⇒ 两条动效同时结束。 */
+  --duration-collapse-delay: 200ms;
+  --duration-layout: calc(var(--duration-panel) + var(--duration-collapse-delay));
+  --wallpaper-url: none;
+  --wallpaper-opacity: 1;
+  --wallpaper-blur: 0px;
+
+  /* ★ 标准材质（内容层，T36）：**不依赖 backdrop-filter**。
+     依据 Apple HIG「Don't use Liquid Glass in the content layer」——
+     液态玻璃属 chrome（侧栏/工具条/下拉/弹窗/提示），**内容卡片用标准材质**：
+     半实色面 + 描边 + 层级阴影。层级因此一眼可辨，且常驻模糊面积大幅下降。
+     底色/描边取自既有主题令牌，故深浅两套主题自动跟随（阴影在浅色主题另行覆盖）。 */
+  --std-bg: color-mix(in srgb, var(--bg-card) 94%, var(--bg-0));
+  --std-border: var(--line);
+  --std-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --std-shadow-2: 0 8px 24px rgba(0, 0, 0, 0.22);
+}
+
+/* 主题层（深色，默认） */
+[data-theme='dark'] {
+  --txt-1: #e9eef9;
+  --txt-2: #8f9ab5;
+  --txt-3: #6b7691;
+  --txt-link: #7cc4ff;
+  --bg-0: #0b0e16;
+  --bg-1: #0d1220;
+  --bg-card: #101624;
+  --bg-card-2: #0d1322;
+  /* 玻璃面底色：随材质角色的不透明度（原先是 --mat-alpha 基准，偏透） */
+  --card-bg: color-mix(in srgb, var(--bg-card) calc(var(--mat-alpha-role) * 100%), transparent);
+  /* 中性状态层（Carbon/M3/VS Code：交互态用中性 alpha，不用不透明底色）。
+     深色主题的更重一档（0.16 vs 0.12）——深底上 12% 几乎看不见。 */
+  --state-hover: rgba(255, 255, 255, 0.16);
+  --state-press: rgba(255, 255, 255, 0.24);
+  /* 控件底/控件描边：深色下控件比卡片更暗才有"凹陷可点"感 */
+  --ctrl-bg: var(--bg-card-2);
+  --ctrl-line: var(--line-strong);
+  /* 控件阴影三态（T-A2）：静止 → 悬停增强 → 按压减小。
+     深色主题用更重的黑影才看得见（与状态层同一套思路）。 */
+  --ctrl-shadow-rest: 0 1px 1px rgba(0, 0, 0, 0.2);
+  --ctrl-shadow-hover: 0 2px 6px rgba(0, 0, 0, 0.3);
+  --ctrl-shadow-press: 0 1px 1px rgba(0, 0, 0, 0.16);
+  /* T37 控件镜面高光（档 4 用）。与 --mat-glow 同理：参与 box-shadow 列表的令牌
+     **不能写 none**（会让整条声明在计算值阶段失效），无高光时写"透明零阴影"占位。 */
+  --ctrl-specular: 0 0 0 transparent;
+  /* 模态遮罩：恒为半透明黑（见 .modal 注释） */
+  --scrim: rgba(0, 0, 0, 0.6);
+  --bg-overlay: rgba(255, 255, 255, 0.02);
+  --line: #232b40;
+  --line-strong: #2d3752;
+  --ok: #9fe6b0;
+  --ok-line: rgba(120, 220, 150, 0.4);
+  --bad: #ff9f9f;
+  --bad-line: rgba(255, 110, 110, 0.4);
+  --warn: #ffcf8f;
+  --warn-line: rgba(255, 190, 110, 0.4);
+  --txt-2-hc: #b8c3de;
+  --txt-3-hc: #9aa6c2;
+  --line-hc: #3c4868;
+  --line-strong-hc: #505f86;
+}
+
+/* 主题层（浅色） */
+[data-theme='light'] {
+  --txt-1: #1c1c1e;
+  --txt-2: #5b6472;
+  --txt-3: #8a93a3;
+  --txt-link: #0a6cff;
+  --bg-0: #f2f4f8;
+  --bg-1: #e8edf5;
+  --bg-card: #ffffff;
+  --bg-card-2: #f4f7fa;
+  /* 玻璃面底色（同深色主题，值随主题换） */
+  --card-bg: color-mix(in srgb, var(--bg-card) calc(var(--mat-alpha-role) * 100%), transparent);
+  /* 中性状态层：浅色主题比深色轻一档（Carbon 0.12） */
+  --state-hover: rgba(0, 0, 0, 0.12);
+  --state-press: rgba(0, 0, 0, 0.2);
+  /* 控件底/描边：浅色下不能再用 --bg-card-2（#f4f7fa 与白卡片几乎同色，
+     控件会"消失"）——改用更下沉的 --bg-0，并配 --line-strong 描边。 */
+  --ctrl-bg: var(--bg-0);
+  --ctrl-line: var(--line-strong);
+  /* 控件阴影三态：浅色主题整体更轻 */
+  --ctrl-shadow-rest: 0 1px 1px rgba(0, 0, 0, 0.06);
+  --ctrl-shadow-hover: 0 2px 6px rgba(0, 0, 0, 0.12);
+  --ctrl-shadow-press: 0 1px 1px rgba(0, 0, 0, 0.04);
+  --scrim: rgba(0, 0, 0, 0.6);
+  --bg-overlay: rgba(0, 0, 0, 0.03);
+  --line: #dde3ec;
+  --line-strong: #c6d0df;
+  /* 标准材质（内容层）阴影：白底上用深色重阴影会发脏，改用低透明度中性色 */
+  --std-shadow-1: 0 1px 2px rgba(16, 24, 40, 0.08);
+  --std-shadow-2: 0 8px 24px rgba(16, 24, 40, 0.1);
+  --ok: #1e8a4c;
+  --ok-line: rgba(30, 138, 76, 0.35);
+  --bad: #c62828;
+  --bad-line: rgba(198, 40, 40, 0.35);
+  --warn: #a86400;
+  --warn-line: rgba(168, 100, 0, 0.35);
+  --txt-2-hc: #3f4854;
+  --txt-3-hc: #5c6674;
+  --line-hc: #b2bccb;
+  --line-strong-hc: #96a1b4;
+}
+
+/* 强调色层（日冕橙，默认） */
+[data-accent='corona-orange'] {
+  --acc: #ff8a3d;
+  --acc-soft: #ffb27a;
+  --acc-line: rgba(255, 138, 61, 0.5);
+  --acc-fill: rgba(255, 138, 61, 0.08);
+  --ink-on-acc: #1a0e04;
+  --chip-bg: rgba(255, 178, 122, 0.12);
+  --chip-line: rgba(255, 178, 122, 0.3);
+  /* 背景光晕：这些是面板背后唯一的"可模糊纹理"——纯色底上 backdrop-filter 无从表现，
+     玻璃会退化成实心块。0.10/0.09 在深色下几乎不可见，故提到 0.18/0.15
+     （仍属克制范围：只影响背景辉光，不动材质本身）。 */
+  --bg-glow-a: rgba(255, 138, 61, 0.18);
+  --bg-glow-b: rgba(255, 178, 122, 0.15);
+}
+
+/* 强调色层（青蓝） */
+[data-accent='cyan-blue'] {
+  --acc: #7cc4ff;
+  --acc-soft: #b39bff;
+  --acc-line: rgba(124, 196, 255, 0.5);
+  --acc-fill: rgba(124, 196, 255, 0.08);
+  --ink-on-acc: #0b0e16;
+  --chip-bg: rgba(179, 155, 255, 0.12);
+  --chip-line: rgba(179, 155, 255, 0.3);
+  --bg-glow-a: rgba(124, 196, 255, 0.18);
+  --bg-glow-b: rgba(179, 155, 255, 0.15);
+}
+
+/* 材质层（T28 玻璃光学重构，三档同构令牌——iOS 26 Dock 光学语言，强度克制）。
+   档 1 frosted：blur+饱和+inset 顶高光+白描边（无折射无色散）；
+   档 2 subtle liquid：+SVG 位移折射（scene 层）+弱 RGB 色散+底部厚度；
+   档 3 liquid：强折射+强色散+强调色边缘光晕+可读性 veil。
+   性能红线：blur ≤16/18/24px；折射=复制场景伪元素 filter:url(#feDisplacementMap)
+   （Chromium 不支持 backdrop-filter:url()，参考 @dpawlikowski/liquid-glass 同路线）。 */
+[data-material='1'] {
+  --mat-blur: 12px;
+  --mat-sat: 1.2;
+  --mat-alpha: 0.85;
+  /* 角色不透明度：大面（侧栏）比小面（浮层）更不透明——Apple HIG
+     "Liquid Glass appears MORE OPAQUE in LARGER elements like sidebars"。
+     基准 --mat-alpha 服务于最小的瞬时浮层，本值服务于卡片与侧栏。 */
+  --mat-alpha-role: 0.9;
+  --mat-edge-light: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  /* T-A8 悬停高光：与静止态同强度，只把顶缘高光沿内侧下移 2px（"动了位置"而非"变亮"） */
+  --mat-edge-light-hover: inset 0 3px 0 rgba(255, 255, 255, 0.25);
+  --mat-edge-thick: inset 0 0 0 transparent;
+  --mat-border: rgba(255, 255, 255, 0.12);
+  --mat-refract: blur(var(--mat-blur)) saturate(var(--mat-sat));
+  --mat-scene-op: 0;
+  --mat-disperse: none;
+  /* 可读性由 `--mat-alpha-role`（大面不透明度 0.9）+ backdrop blur 承担。
+     曾有的 `--mat-veil`（整面平面渐变）已退休，理由见档 3 处的说明。 */
+  --mat-glow: 0 0 0 transparent;
+  --mat-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.24);
+  --mat-shadow-2: 0 8px 24px rgba(0, 0, 0, 0.32);
+}
+
+[data-material='2'] {
+  --mat-blur: 18px;
+  --mat-sat: 1.4;
+  --mat-alpha: 0.68;
+  --mat-alpha-role: 0.8;
+  --mat-edge-light: inset 0 1.5px 0 rgba(255, 255, 255, 0.4);
+  --mat-edge-light-hover: inset 0 3.5px 0 rgba(255, 255, 255, 0.4);
+  --mat-edge-thick: inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+  --mat-border: rgba(255, 255, 255, 0.16);
+  --mat-refract: blur(var(--wallpaper-blur)) url(#glass-refract-subtle)
+    blur(var(--mat-blur)) saturate(var(--mat-sat));
+  --mat-scene-op: 0.6;
+  --mat-disperse: inset 1px 0 0 rgba(255, 64, 96, 0.07), inset -1px 0 0 rgba(64, 160, 255, 0.07);
+  /* 档 2 无光晕：同样必须写透明零阴影（写 none 会让整条 box-shadow 失效） */
+  --mat-glow: 0 0 0 transparent;
+  --mat-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --mat-shadow-2: 0 10px 28px rgba(0, 0, 0, 0.28);
+}
+
+[data-material='3'] {
+  --mat-blur: 24px;
+  --mat-sat: 1.6;
+  --mat-alpha: 0.5;
+  --mat-alpha-role: 0.68;
+  --mat-edge-light: inset 0 1.5px 0 rgba(255, 255, 255, 0.6);
+  --mat-edge-light-hover: inset 0 3.5px 0 rgba(255, 255, 255, 0.6);
+  --mat-edge-thick: inset 0 -1.5px 0 rgba(255, 255, 255, 0.08);
+  --mat-border: rgba(255, 255, 255, 0.22);
+  --mat-refract: blur(var(--wallpaper-blur)) url(#glass-refract-strong)
+    blur(var(--mat-blur)) saturate(var(--mat-sat));
+  --mat-scene-op: 0.85;
+  --mat-disperse: inset 1.5px 0 0 rgba(255, 64, 96, 0.12), inset -1.5px 0 0 rgba(64, 160, 255, 0.12),
+    inset 0 1.5px 0 rgba(255, 64, 96, 0.05), inset 0 -1.5px 0 rgba(64, 160, 255, 0.05);
+  /* ★ `--mat-veil` 已退休（T36）：它曾是"可读性承托层"——一层 24% `--bg-card` 的**平面**渐变。
+     两个问题：
+     ① 它是**把不透明度刷两遍**：卡片的 `--mat-alpha-role` 已是 0.68，再叠 24% ⇒ 液态档的"通透"
+        被抹平，观感更塑料（评估文档 UX-LIQUID-GLASS 第 111 条已记："整面糊灰"）；
+     ② 平面渐变在深色主题下**显成一层灰膜**，用户实测反馈"卡片下有一层半透明的灰色底图"。
+     正确做法：可读性只由 `--mat-alpha-role`（大面不透明度，一个数）+ backdrop blur 承担；
+     需要更实就调那一个数，不要重新引入整面薄纱（守卫见 tests/unit/material-surface.spec.ts）。 */
+  --mat-glow: 0 0 22px 1px color-mix(in srgb, var(--acc) 18%, transparent);
+  --mat-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.18);
+  --mat-shadow-2: 0 12px 32px rgba(0, 0, 0, 0.24);
+}
+
+/* ------------------------------------------------------------------ *
+ * ★ T37 档 4「全液态玻璃」（clear 变体）
+ *
+ * 定位：把研究文档 §6 清单里的进阶项一次开满 —— 最强折射（优先消费**烘焙位移图**）、
+ * 四边真色散、场景层 1.0、更亮的强调色光晕；并为本档**配套设计功能控件材质**。
+ *
+ * 性能守则（用户明确要求"做好烘焙保性能"）：
+ * ① 位移图/高光图走 glass-bake 的**程序化烘焙 + 参数缓存**，尺寸无关（objectBoundingBox），
+ *    绝不在 mousemove/resize 上重建（研究文档 §6 明列"不借鉴"范本里的这几种做法）；
+ * ② 本档只作用于 **chrome**（侧栏/工具条/下拉/弹窗/提示/功能控件）——内容层仍是标准材质（T36），
+ *    故**常驻模糊面积不随档位增长**；
+ * ③ 帧率采样自动逐级降档（档 4 → 3 → 2，沿用 T28 通道）。
+ * ------------------------------------------------------------------ */
+[data-material='4'] {
+  /* ★ 规范红线 AI_RULES 24 的落地：**不得糊成"均匀灰面"**
+     均匀灰面的成因有且只有两个 —— ① 重度模糊把底图抹平；② 面太实把底图盖住。
+     所以把两个数都压在会"看得见底图"的区间里（并加了机械守卫，见 material-tier4.spec 第 ⑩ 组）：
+     - `--mat-blur: 12px`：底图结构仍可辨认（此前 18/24/28px 都会被抹成均匀灰）；
+     - `--mat-alpha: 0.34` / 角色 `0.48`：通透到能看见背后内容；
+     - `brightness(0.86)`：只做苹果式"明度微调"（保可读性），不做压暗 ⇒ 不产生灰感。
+     注：另有一个观感陷阱是"测试底图本身太花"（tests/fixtures/wallpaper-probe.png 是 16px 棋盘格 +
+     细网格，比任何真实壁纸都高频）⇒ 用真实壁纸看时会比探针截图干净得多。 */
+  --mat-blur: 12px;
+  --mat-sat: 1.18;
+  --mat-alpha: 0.34;
+  --mat-alpha-role: 0.48;
+  --mat-edge-light: inset 0 2px 0 rgba(255, 255, 255, 0.7);
+  --mat-edge-light-hover: inset 0 4px 0 rgba(255, 255, 255, 0.7);
+  --mat-edge-thick: inset 0 -2px 0 rgba(255, 255, 255, 0.1);
+  --mat-border: rgba(255, 255, 255, 0.3);
+  /* 折射：**当前回退到静态强折射滤镜**（glass-refract-strong，立即可用）。
+     烘焙位移图（glass-bake）的生成器与缓存已就绪，但"运行时注入 #glass-refract-baked"
+     尚未接线 —— 未接线的滤镜 URL 会让整条 filter 声明失效（比不生效更糟），故此处先不引用它；
+     接线后改回 `url(#glass-refract-baked)` 即完成升级（见 TASKS/T37 卡）。 */
+  --mat-refract: blur(var(--wallpaper-blur)) url(#glass-refract-strong)
+    blur(var(--mat-blur)) saturate(var(--mat-sat));
+  --mat-scene-op: 1;
+  --mat-disperse: inset 2px 0 0 rgba(255, 64, 96, 0.16), inset -2px 0 0 rgba(64, 160, 255, 0.16),
+    inset 0 2px 0 rgba(255, 64, 96, 0.07), inset 0 -2px 0 rgba(64, 160, 255, 0.07);
+  --mat-glow: 0 0 26px 1px color-mix(in srgb, var(--acc) 22%, transparent);
+  --mat-shadow-1: 0 2px 4px rgba(0, 0, 0, 0.2);
+  --mat-shadow-2: 0 16px 40px rgba(0, 0, 0, 0.3);
+
+}
+
+/* ★ 档 4 的**配套层**（故意单独成块，不是材质档本体）：
+   ① 功能控件材质（用户第 2 条补充）——控件比面板更"实"一点、更精致，
+      否则控件会"漂"在最透的玻璃上、失去可点按的实体感；
+   ② 文字可读性（用户第 3 条补充）——**提升文字自身对比度**，而不是再刷一层整面薄纱
+      （`--mat-veil` 已退休；"整面糊灰"是评估文档明确否定的错解）。
+   为什么单独成块：守卫 `tierVars` 取**首个**同名选择器块 ⇒ 档 4 的 `--mat-*` 集合
+   仍与其它三档逐名一致（"四档令牌名集合一致"继续生效），配套层按需声明、不污染材质档本体。 */
+[data-material='4'] {
+  /* ★ 档 4 **控件专属材质**（用户明确要求；配方按照搬手册 docs/LIQUID-GLASS-PORT-PLAN.md §2）
+     控件 = "被打光的薄玻璃片"，不是面板的缩小版。四要素（全部来自范本工程 / Apple 口径）：
+     ① **固定的上沿镜面**（`--ctrl-specular`，inset 上亮下暗）—— iOS 26 的小控件就是这样：
+        镜面**固定不追指针**（用户反馈："块状按钮还有奇怪的跟随高光" ⇒ 已撤掉烘焙高光贴图，
+        因为那一层会随全局光照角度变化，落在小控件上就是一块会跑的亮斑）；
+     ② 玻璃面：上方轻、下方几乎全透的渐变 + 半透明底色；
+     ③ 内测边缘透镜：上沿亮、下沿暗（玻璃有厚度）；
+     ④ 抬升阴影（离开背景）。
+     交互时另加实模糊（见下方 hover/active 规则）⇒ 静止态零成本（Apple：滑块/开关仅交互瞬间取用玻璃）。 */
+  --ctrl-bg: linear-gradient(to bottom, color-mix(in srgb, var(--txt-1) 16%, transparent), transparent 46%),
+    color-mix(in srgb, var(--bg-card-2) 34%, transparent);
+  --ctrl-line: rgba(255, 255, 255, 0.42);
+  --ctrl-specular: inset 0 1px 0 rgba(255, 255, 255, 0.62), inset 0 -1px 0 rgba(0, 0, 0, 0.28);
+  --ctrl-shadow-rest: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --ctrl-shadow-hover: 0 6px 18px rgba(0, 0, 0, 0.34);
+  --ctrl-shadow-press: 0 1px 1px rgba(0, 0, 0, 0.24);
+  --state-hover: rgba(255, 255, 255, 0.2);
+  --state-press: rgba(255, 255, 255, 0.3);
+  /* ★ 文字：复用既有的高对比备用令牌。
+     **不能**写成 `color-mix(… var(--txt-2))` —— 自定义属性引用自身是无效值，
+     会让 --txt-2 计算为空、所有 var(--txt-2) 消费者一起失效（本次用计算样式取证抓到：
+     档 2 为 #8f9ab5，档 4 为空串）。守卫见 tests/unit/material-tier4.spec.ts 的自引用检查。 */
+  --txt-2: var(--txt-2-hc);
+}
+
+/* 档 4 控件：**只有交互瞬间**才挂玻璃模糊（静止态零成本 —— 用户要求"尽量减小资源消耗"），
+   并叠一层镜面高光（精致实体感的来源）。静止态靠"半透明面 + 顶部 sheen + 厚度边"表达玻璃感。 */
+[data-material='4'] .btn,
+[data-material='4'] .seg,
+[data-material='4'] select,
+[data-material='4'] input:not([type='range']):not([type='checkbox']) {
+  box-shadow: var(--ctrl-shadow-rest), var(--ctrl-specular);
+}
+
+[data-material='4'] .btn:not(:disabled):hover,
+[data-material='4'] .btn:not(:disabled):active,
+[data-material='4'] .seg:not(:disabled):hover,
+[data-material='4'] .seg:not(:disabled):active {
+  backdrop-filter: blur(calc(var(--mat-blur) * 0.6)) saturate(var(--mat-sat));
+  -webkit-backdrop-filter: blur(calc(var(--mat-blur) * 0.6)) saturate(var(--mat-sat));
+}
+
+/* ★ 档 4 **控件专属动效**（用户明确要求，此前未做）
+   Apple 口径："按钮会 morph、滑块旋钮在交互中变成液态玻璃" ⇒ 控件在交互瞬间"玻璃化并浮起"：
+   - hover：上浮 1px + 阴影抬升 + 高光保持（像被光"托起"）；
+   - active：下沉 0.5px + 轻微收缩（按下去的手感）+ 阴影收回。
+   只动 transform / box-shadow / 颜色（项目既有红线：不动宽高与内外边距）；时长走 --duration-fast；
+   reduce-motion 与低帧率降档由既有全局规则一键关闭。 */
+[data-material='4'] .btn,
+[data-material='4'] .seg,
+[data-material='4'] .nav-item {
+  transition: transform var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-normal) var(--ease-standard);
+}
+
+[data-material='4'] .btn:not(:disabled):hover,
+[data-material='4'] .seg:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: var(--ctrl-shadow-hover), var(--ctrl-specular);
+}
+
+[data-material='4'] .btn:not(:disabled):active,
+[data-material='4'] .seg:not(:disabled):active {
+  transform: translateY(0.5px) scale(0.995);
+  box-shadow: var(--ctrl-shadow-press), var(--ctrl-specular);
+}
+
+/* ================================================================== *
+ * T37 档 4「全液态玻璃」：**内容层也回到玻璃**（用户明确选择）
+ *
+ * 背景：T36 依据 Apple「内容层不用玻璃」把内容卡片改成不透明实面，解决了"灰色薄纱"。
+ * 但用户的档 4 目标是**全屏液态玻璃** ⇒ 档 4 下让卡片/模块槽/工具槽改用与侧栏同一套材质，
+ * 并同样获得**折射场景层**与**暗压层**（可读性由暗压层 + 文字对比度承担，而不是把面做实）。
+ *
+ * 代价与兜底：常驻模糊面积随档位增长（只发生在用户主动选择的档 4），
+ * 且既有帧率采样会自动逐级降档（4→3→2）——那时内容层回到实面。
+ * ================================================================== */
+/* ★ 档 4「完全实现液态玻璃」：**内容层也是液态玻璃**（用户原始要求 + 用户明确选择）。
+   说明：研究文档 §4 的第 1 项曾建议"内容层去玻璃化"，那是**调研建议**；用户的要求是
+   "完全实现液态玻璃材质" 且明确选择"内容卡片也改回液态玻璃（真正全屏液态玻璃）"
+   ⇒ 以**用户要求**为准（文档不能压过需求）。
+   可读性**不用**暗压层/暗色调（用户已否决"烟熏玻璃"），改为提升文字自身对比度（见下方 --txt-* 规则）。
+   性能兜底不变：档 4 是用户主动选择；帧率采样自动逐级降档（4→3→2）后内容层回到标准材质。 */
+[data-material='4'] .card,
+[data-material='4'] .module-page-host,
+[data-material='4'] .tool-slot
+{
+  background: var(--card-bg);
+  border-color: var(--mat-border);
+  /* ★ 内容层**不带外发光**：`--mat-glow` 是 chrome 的强调色光晕（26px 外扩），
+     复制到内容卡片上会在卡片四周糊出一圈，正是用户看到的"类似灰色薄纱"。
+     内容层只保留"内测边缘高光 + 层级阴影"（这两种不外扩、不糊）。 */
+  box-shadow: var(--mat-edge-light), var(--mat-edge-thick), var(--mat-shadow-1), var(--mat-shadow-2);
+  backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+  -webkit-backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+}
+
+/* 内容层的折射场景层（与 chrome 同构：同一张底图 + 同一套 --mat-refract + 场景层不透明度），
+   并同样压一层约 33% 的暗色 —— 亮底图下这是文字可读性的关键，也是"烟熏玻璃"的观感来源。 */
+/* 内容层折射场景层：与 chrome **同构**（同一张壁纸 + 同一套 --mat-refract + 场景层不透明度），
+   **不额外压暗**（用户明确否决"烟熏玻璃"；这里只有壁纸与透镜效果本身）。 */
+[data-material='4'] .card::before,
+[data-material='4'] .module-page-host::before,
+[data-material='4'] .tool-slot::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image: var(--wallpaper-url);
+  background-size: var(--scene-size, cover);
+  background-position: var(--scene-pos, center);
+  background-repeat: var(--scene-repeat, no-repeat);
+  background-attachment: fixed;
+  opacity: calc(var(--mat-scene-op) * var(--wallpaper-opacity));
+  filter: var(--mat-refract);
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* 内容层色散层：与 chrome 同构（四边 RGB 分离 + screen 混合）。 */
+[data-material='4'] .card::after,
+[data-material='4'] .module-page-host::after,
+[data-material='4'] .tool-slot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: var(--mat-disperse);
+  mix-blend-mode: screen;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* T37 已移除：内容层色散层（理由同上）。 */
+
+/* ★ 全液态玻璃的文字可读性（用户第三条补充："参照范本工程看它们如何解决"）
+   范本结论里**不需要暗压层**的那两条（见 docs/UI-LIQUID-GLASS-RESEARCH.md §2–§3）：
+   ① 结构性：玻璃用于 chrome + 内容面，文字始终在玻璃的**同一层**上（不做整面承托）；
+   ② 提升文字自身对比度：档 4 把主/次/三级文字提到既有的高对比备用令牌。
+   —— 暗压层（§6 第 6 项）与"整面薄纱"都不采用：前者做出烟熏玻璃、后者是评估文档否定的错解。 */
+[data-material='4'] {
+  --txt-2: var(--txt-2-hc);
+  --txt-3: var(--txt-3-hc);
+}
+
+/* T37 已移除：档 4 面板底色的"暗色调"（自作聪明）。
+   文档 §6 第 6 项把"按背景选材质（regular / clear，含 35% 暗压层）"标为**远期**，
+   本卡不应提前实现；且实测它的观感就是用户反复指出的"灰色薄纱"。
+   本卡的层级纪律遵循 §4/§6 第 1 项：内容层标准材质、chrome 玻璃。 */
+
+/* 档 4 控件：**交互瞬间**才取用液态玻璃（Apple 口径：滑块/开关等只在交互时临时取用）。
+   静止态零 backdrop-filter ⇒ 不增加常驻模糊成本。 */
+[data-material='4'] .btn:not(:disabled):hover,
+[data-material='4'] .btn:not(:disabled):active,
+[data-material='4'] .seg:not(:disabled):hover,
+[data-material='4'] .seg:not(:disabled):active {
+  backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+  -webkit-backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+}
+
+
+/* 可读性降级（T22/T28）：减少透明度——一切玻璃光学归零，纯色面板 */
+[data-reduce-transparency='1'] {
+  /* 先声明带后缀的令牌：`--mat-alpha` 是其前缀子串，顺序颠倒会让简单解析器误判 */
+  --mat-alpha-role: 1;
+  --mat-alpha: 1;
+  --mat-blur: 0px;
+  --mat-sat: 1;
+  --mat-edge-light: inset 0 0 0 transparent;
+  --mat-edge-thick: inset 0 0 0 transparent;
+  /* 悬停高光一并归零：否则"减少透明度"下静止态无高光、悬停却冒出白边，前后不一致 */
+  --mat-edge-light-hover: inset 0 0 0 transparent;
+  --mat-border: var(--line-strong);
+  --mat-refract: none;
+  --mat-scene-op: 0;
+  --mat-disperse: none;
+  /* 纯色面板同样保留"透明零阴影"占位（见档 1 说明：none 会让 box-shadow 整条失效） */
+  --mat-glow: 0 0 0 transparent;
+}
+
+/* 可读性降级（T22）：高对比度——文字/描边取增强备用值 */
+[data-high-contrast='1'] {
+  --txt-2: var(--txt-2-hc);
+  --txt-3: var(--txt-3-hc);
+  --line: var(--line-hc);
+  --line-strong: var(--line-strong-hc);
+}
+
+/* 可读性降级（T22）：减少动态效果——全局禁用过渡与动画。
+   **必须带 `:root` 前缀**：不带前缀时本条特异性为 (0,1,0)，与 `.card` 等组件规则相同，
+   而组件规则在文件里更靠后 → 会被覆盖，降级只改了属性却没真关掉动效（运行时实测发现）。
+   加 `:root` 后为 (0,2,0)，稳压组件规则。
+   注意：本注释不得出现带花括号的 CSS 片段——单测的块解析器是朴素正则，会把注释里的
+   这类文本误当成真实规则块。 */
+:root[data-reduce-motion='1'] * {
+  transition: none;
+  animation: none;
+}
+
+/* T-A7：尊重系统级「减少动态效果」（prefers-reduced-motion）。
+   用**独立根属性**而非并入 data-reduce-motion——后者的语义是"用户在应用内打开了开关"，
+   集成测试据此断言；把系统偏好折进同一个属性会让"开关关着却报 1"，语义混淆。 */
+:root[data-sys-reduce-motion='1'] * {
+  transition: none;
+  animation: none;
+}
+
+/* T-A7 低配模式：减少透明度 + 减少动态效果同时开启 ⇒ 再关掉底图层。
+   此时材质已退化为不透明纯色、光学层归零，底图既看不见又占一层合成——去掉它是纯收益。
+   不新增配置字段：低配模式由这两个既有开关**派生**（见 App.tsx 的 switch-low-spec）。 */
+[data-reduce-transparency='1'][data-reduce-motion='1'] .wallpaper {
+  display: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* 表单控件默认不继承字体：Chromium 的 UA 样式对 button/input/select/textarea 强制
+   `font: 400 13.3333px Arial`，与 body 的 Rajdhani/思源黑体字体栈割裂（实测 .nav-item
+   计算字体族为 Arial，全站按钮文字因此一直是 Arial）。
+   只纠正 font-family——**不动 font-size**，避免按钮几何尺寸整体漂移。 */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  /* 底图兜底 + 强调色辉光。v0.1.8-beta1.1 起这两件事都归 body：
+     原先纯色底写在 .wallpaper 上（不透明），会把这里的辉光整层盖住，导致面板背后
+     永远是纯色 —— 而纯色上的玻璃做不出效果（实测 档1 α=0.90 与 档3 α=0.68 的落色
+     通道差仅 2/765，肉眼不可辨）。把纯色兜底上移到 body 后：无图时观感不变
+     （仍是 --bg-0→--bg-1 渐变 + 辉光），面板背后则终于有了可被透出/模糊的明暗变化。 */
+  background: radial-gradient(900px 420px at 85% -10%, var(--bg-glow-a), transparent 60%),
+    radial-gradient(700px 380px at -10% 110%, var(--bg-glow-b), transparent 60%),
+    linear-gradient(165deg, var(--bg-0), var(--bg-1));
+  color: var(--txt-1);
+  font-family: 'Rajdhani', 'SourceHanSansSC', 'Noto Sans SC', 'Microsoft YaHei UI', 'Segoe UI',
+    system-ui, sans-serif;
+  font-size: 14px;
+}
+
+/* 全局底图层（T17）：**只负责用户选定的图片**（--wallpaper-url）；
+   纯色兜底与强调色辉光已上移到 body（见 body 注释）——原先这里带不透明的
+   background-color: var(--bg-0)，会把 body 的辉光整层遮住，面板背后永远是纯色。
+   透明度/模糊度独立于材质档调节；无图时本层透明，透出 body 的渐变 + 辉光。
+   z-index:-1 与玻璃面高光/折射层同层，保持既有层叠次序。 */
+.wallpaper {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-color: transparent;
+  background-image: var(--wallpaper-url);
+  opacity: var(--wallpaper-opacity);
+  filter: blur(var(--wallpaper-blur));
+  /* ★ 把底图**绑死在功能分区卡片的范围内**（用户原话："把他的范围和功能分区卡片的范围彻底绑死，
+     非要让整个灰底溢出吗"）。
+     本层是**整窗铺开**的（inset: 0）⇒ 它会在功能卡片**之间**的缝隙里未加处理地露出来 ——
+     亮底图下就是那条"怪异灰色边界"（像素实测：边界处亮度 209、两侧仅 85~110；三档都有；
+     无底图时不可见 ⇒ 责任方确认）。
+     现在底图改由**各功能分区自己的折射场景层**绘制（`.side::before` / `.tool-bar::before` /
+     `.modal-panel::before` / `.card::before`，它们以 `border-radius: inherit` + `inset: 0`
+     精确贴着各自卡片范围）⇒ 可见范围与卡片边界**完全一致**，不再外溢；
+     且 `--wallpaper-url / --wallpaper-opacity / --wallpaper-blur / --scene-*` 全部照常生效
+     （场景层逐项消费这些令牌）⇒ **玻璃效果一点不少**（用户第 3 条：原有玻璃效果不允许删除）。
+     注：AI_RULES 24 禁的是"为补可读性而加的成片灰层"；这里是**取消一个整窗外溢的图层**（范围收窄），
+     方向相反，不冲突。
+     实现细节：**保留该图层本身**（`display` 不变 —— 既有低配模式用例断言"默认底图可见"，
+     见 tests/integration/a11y-degrade.spec.ts），只让它**不再自行绘制底图**（background-image: none）
+     ⇒ 底图完全由卡片场景层在卡片范围内绘制，越界溢出为零。 */
+  background-image: none;
+}
+
+/* ================================================================== *
+ * ★ 溢出审计与"绑死"（用户："把所有可能溢出的元素做一个评估，可以最小化范围的全部绑死到功能分区卡片上"）
+ *
+ * | 元素 | 能否溢出到卡片之外 | 处置 |
+ * | --- | --- | --- |
+ * | `.wallpaper`（fixed/inset:0 整窗） | 会（曾在缝隙外溢成灰带，实测亮度 209） | **已绑**：不再整窗绘制，改由卡片场景层绘制 |
+ * | 场景层 `::before`（SVG 滤镜输出） | **会** —— 滤镜输出不受元素 border-radius 裁切 | **本规则绑死** |
+ * | 色散层 `::after`（inset box-shadow） | 不会（画在内部） | 纳入同一 clip 兜底 |
+ * | 外发光 `--mat-glow`（0 0 22~26px） | **会**（面板外 22~26px） | **本规则绑死** |
+ * | 阴影 `--mat-shadow-1/2`（外扩） | 会，但为**暗色**、不形成灰带 | **本规则一并绑在面板内** |
+ * | `.toast` / `.modal`（fixed 浮层） | 会 | 保留：浮层本就应覆盖内容 |
+ * | `body` 底色 + 辉光 | 视口底座本身 | 保留：玻璃必须有可透之物（实测缝隙处已是深色底 31 vs 面板 103~112） |
+ *
+ * 说明：`overflow: clip` 只裁切**后代**（含伪元素与滤镜输出），**不裁元素自身的 box-shadow**
+ * ⇒ 面板的抬升阴影与边缘高光全部保留（不违反"原有玻璃效果不允许删除"）。
+ * `.side` **不列入**：它是滚动容器（overflow-y: auto），本身已裁切，再加 clip 会破坏滚动。
+ * ================================================================== */
+.tool-bar,
+.modal-panel,
+.card,
+.module-page-host,
+.tool-slot
+{
+  overflow: clip;
+}
+
+/* 显示方式：填充（裁剪铺满） */
+[data-wallpaper-fit='fill'] .wallpaper {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* 显示方式：适应（完整可见） */
+[data-wallpaper-fit='fit'] .wallpaper {
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* 显示方式：平铺 */
+[data-wallpaper-fit='tile'] .wallpaper {
+  background-size: auto;
+  background-repeat: repeat;
+}
+
+/* 显示方式：居中（原始尺寸） */
+[data-wallpaper-fit='center'] .wallpaper {
+  background-size: auto;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* 显示方式：拉伸（变形铺满） */
+[data-wallpaper-fit='stretch'] .wallpaper {
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+}
+
+/* T28 折射场景层 fit 令牌镜像：玻璃面 ::before 以同样的尺寸/平铺/定位复绘壁纸，
+   供 feDisplacementMap 位移（attachment:fixed 与 .wallpaper 同步对齐视口）。 */
+[data-wallpaper-fit='fill'] {
+  --scene-size: cover;
+  --scene-pos: center;
+  --scene-repeat: no-repeat;
+}
+
+[data-wallpaper-fit='fit'] {
+  --scene-size: contain;
+  --scene-pos: center;
+  --scene-repeat: no-repeat;
+}
+
+[data-wallpaper-fit='tile'] {
+  --scene-size: auto;
+  --scene-pos: 0 0;
+  --scene-repeat: repeat;
+}
+
+[data-wallpaper-fit='center'] {
+  --scene-size: auto;
+  --scene-pos: center;
+  --scene-repeat: no-repeat;
+}
+
+[data-wallpaper-fit='stretch'] {
+  --scene-size: 100% 100%;
+  --scene-pos: center;
+  --scene-repeat: no-repeat;
+}
+
+/* T19 主界面布局：左 1/4 导航区 + 右 3/4 内容区两列，底部条全宽跨两列（embedded 契约） */
+.shell {
+  position: relative; /* T45 修订：专注态侧栏是绝对定位覆盖层，必须以 .shell 为参照 */
+  height: 100%;
+  padding: var(--sp-5);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 3fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: var(--sp-4);
+}
+
+/* 品牌区（v0.1.8-beta1.1）：去掉方块图标，只留标题文字。
+   侧栏顶部因此多出约 34px 垂直空间——用 padding 把它还给标题，让标题块成为侧栏顶部的"页头"，
+   而不是贴在角落的一行小字。 */
+.brand {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-1);
+  padding-bottom: var(--sp-4);
+  border-bottom: 1px solid var(--line);
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1.35;
+}
+
+.brand-name {
+  letter-spacing: 1px;
+  color: var(--txt-1);
+}
+
+.brand-version {
+  color: var(--txt-2);
+  font-family: 'Rajdhani', Consolas, monospace;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.5px;
+}
+
+/* 内容层卡片（T36 层级纪律）：**标准材质**，不再是液态玻璃。
+   依据 Apple HIG「Don't use Liquid Glass in the content layer」——
+   内容面用半实色底 + 描边 + 层级阴影，**不带 backdrop-filter、不带折射/色散伪元素**；
+   玻璃光学只留给 chrome（侧栏 / 工具条 / 下拉 / 弹窗 / 提示）。
+   收益：① 导航/内容/浮层一眼可辨；② 常驻模糊面积大幅下降（本方案性能收益最大的一步）。 */
+.card {
+  position: relative;
+  /* ★ 按用户要求恢复"原有三档材质效果"（= T36 之前的内容层玻璃配方，逐行照抄原版）：
+     半透明底 + blur/saturate + 材质描边 + 边缘高光/厚度/光晕/阴影；
+     折射场景层与色散层见 .side::before / .side::after 组（已把 .card 加回）。
+     注意：**不恢复** `--mat-veil`（整面薄纱已退休，AI_RULES 24 明令禁止）。 */
+  background: var(--card-bg);
+  backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+  -webkit-backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+  border: 1px solid var(--mat-border);
+  box-shadow: var(--mat-edge-light), var(--mat-edge-thick), var(--mat-glow), var(--mat-shadow-1),
+    var(--mat-shadow-2);
+  border-radius: var(--r-lg);
+  padding: var(--sp-5);
+  flex: 1;
+}
+
+.card h1 {
+  font-size: 20px;
+  margin: 0 0 8px;
+}
+
+.card p {
+  color: var(--txt-2);
+  margin: 0 0 var(--sp-4);
+}
+
+.meta {
+  color: var(--txt-3);
+  font-family: 'Rajdhani', Consolas, monospace;
+  font-size: 12px;
+  margin-top: var(--sp-4);
+}
+
+/* ---------- T12 管理界面 ---------- */
+
+/* T19 左侧导航区玻璃面（材质消费与卡片同套变量 + T28 光学令牌）+ 功能分组导航 + 底部消息 */
+.side {
+  grid-column: 1;
+  grid-row: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  padding: var(--sp-5);
+  overflow-y: auto;
+  background: var(--card-bg);
+  backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+  -webkit-backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+  border: 1px solid var(--mat-border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--mat-edge-light), var(--mat-edge-thick), var(--mat-glow), var(--mat-shadow-1),
+    var(--mat-shadow-2);
+}
+
+.side-nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+}
+
+.nav-group {
+  position: relative; /* 供「模块」二级下拉浮层定位 */
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+}
+
+.nav-group-label {
+  padding: 0 var(--sp-2);
+  color: var(--txt-3);
+  font-size: 11px;
+  letter-spacing: 2px;
+}
+
+.nav-item {
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--txt-2);
+  cursor: pointer;
+  font-size: 14px;
+  text-align: left;
+}
+
+.nav-item:hover {
+  background: var(--state-hover);
+}
+
+.nav-item.active {
+  color: var(--txt-1);
+  border-color: var(--acc-line);
+  background: var(--acc-fill);
+  font-weight: 500;
+}
+
+.nav-item:active {
+  background: var(--state-press);
+}
+
+/* 侧栏「模块」二级下拉（T35）：占流面板（不绝对浮层——展开不盖住下方偏好组/内容区，
+   设置按钮始终可见可点），玻璃面板 + 智能路由子项；收起走 document click 监听
+   （非 mousedown，避免收起时布局位移导致同一次点击的 mouseup 目标漂移丢 click）。 */
+.nav-dropdown {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  margin: 0 0 var(--sp-1);
+  padding: var(--sp-1);
+  /* 瞬时浮层（最小面）走基准不透明度：比卡片/侧栏更透、更"浮"。
+     不再叠 `--mat-veil`（已退休）：那会在浮层上糊一层灰，正是用户反馈的"薄纱"。 */
+  background: color-mix(in srgb, var(--bg-card) calc(var(--mat-alpha) * 100%), transparent);
+  backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+  -webkit-backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+  border: 1px solid var(--mat-border);
+  border-radius: var(--r-md);
+  box-shadow: var(--mat-edge-light), var(--mat-edge-thick), var(--mat-glow), var(--mat-shadow-1),
+    var(--mat-shadow-2);
+  /* T-A5 展开动效：只动 opacity + translateY。刻意**不做 height 过渡**——高度动画每帧
+     触发布局，属"禁 width/height"红线；且本面板是**占流**面板，做高度过渡会逐帧推挤
+     下方导航与设置按钮，产生抖动。折叠态由 [data-closing] 走 el-drop-out。 */
+  animation: el-drop-in var(--duration-normal) var(--ease-decelerate);
+}
+
+.nav-dropdown[data-closing='true'] {
+  animation: el-drop-out var(--duration-fast) var(--ease-accelerate) forwards;
+}
+
+.nav-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
+  font-size: 12px;
+  border-radius: var(--r-sm);
+  animation: el-item-in var(--duration-fast) var(--ease-decelerate) backwards;
+}
+
+/* 列表项错峰入场（T-A6）：模块列表是侧栏里唯一的动态列表，逐项延迟 24ms。
+   步数上限 5（第 6 项起共用末档）：120ms(动画) + 120ms(最大延迟) = 240ms ≤ 300ms 预算；
+   不做无限递增既为预算，也为观感——长列表越到后面越慢会显得拖沓。
+   backwards 填充是必需的：没有它，延迟期间会先呈现终态再跳回起始态（闪一下）。 */
+.nav-dropdown-item:nth-child(2) {
+  animation-delay: calc(var(--duration-stagger) * 1);
+}
+
+.nav-dropdown-item:nth-child(3) {
+  animation-delay: calc(var(--duration-stagger) * 2);
+}
+
+.nav-dropdown-item:nth-child(4) {
+  animation-delay: calc(var(--duration-stagger) * 3);
+}
+
+.nav-dropdown-item:nth-child(5) {
+  animation-delay: calc(var(--duration-stagger) * 4);
+}
+
+.nav-dropdown-item:nth-child(n + 6) {
+  animation-delay: calc(var(--duration-stagger) * 5);
+}
+
+.nav-dropdown-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-dropdown .badge {
+  flex: none;
+  padding: 0 var(--sp-2);
+  font-size: 11px;
+  line-height: 16px;
+  border-color: var(--line-strong);
+}
+
+.nav-dropdown-error {
+  color: var(--bad);
+  font-size: 11px;
+  margin: var(--sp-1) 0;
+}
+
+.content {
+  grid-column: 2;
+  grid-row: 1;
+  min-height: 0;
+  /* B 方案：本元素是**不滚动的玻璃外框** —— 折射/色散场景层（::before/::after）挂在它上面，
+     因此不会随内容滚动（此前直接挂在滚动容器上会"底图跟着滑"）。
+     滚动交给内层 `.content-scroll`；槽位/页面的 flex 布局也移到内层。 */
+  position: relative;
+  overflow: clip;
+  display: flex;
+  flex-direction: column;
+  /* ★ 常驻的"底图浮动面板"（用户要求："右侧模块启动后作为底图的浮动面板，请你常驻"）
+   *
+   * 依据是模块原有的布局契约：模块的嵌入式视图**只允许出现在右侧功能页之内**
+   * （tests/integration/module-view-bounds.spec.ts），而承载它的正是
+   * `.module-page-host` / `.tool-slot` 这类**槽位面板** —— 那就是用户说的"作为底图的浮动面板"。
+   * 现在让右侧内容区**本身就是**这样一块常驻面板（与槽位同一套玻璃配方），页面卡片浮在它上面 ⇒
+   * **卡片之间的缝显示的是这块面板（玻璃），而不是应用底色**
+   * ⇒ 那条"灰/浅色竖条"从根上消失，且**不需要删间隙、不需要放大任何面板**。
+   *
+   * 注：面板背景是元素自身的 background（`background-attachment: scroll`）⇒ 在滚动容器里
+   * **不随内容滚动**，始终贴着内容区边界；卡片照旧各自带玻璃与折射。 */
+  background: var(--card-bg);
+  backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+  -webkit-backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+  border: 1px solid var(--mat-border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--mat-edge-light), var(--mat-edge-thick), var(--mat-glow), var(--mat-shadow-1),
+    var(--mat-shadow-2);
+}
+
+/* B 方案内层：真正的滚动容器 + 页面留白（原 .content 的滚动与内边距搬到这一层）。
+   外框负责玻璃/折射，内层负责滚动与排布 ⇒ 场景层不随内容滚动。 */
+.content-scroll {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  /* 页面内容与面板边缘留白（用户："紧贴边缘太丑了，这个不用学"）。
+     但模块页槽位/第三方工具槽位必须**铺满**右侧 3/4（T34 契约，集成断言"槽位宽度＝内容区宽度"）
+     ⇒ 对这两类槽位用**负外边距抵消**下面的内边距，两边都不破坏。 */
+  padding: var(--sp-4);
+}
+
+.content-scroll > .module-page-host,
+.content-scroll > .tool-slot
+{
+  margin: calc(-1 * var(--sp-4));
+}
+
+/* ★ T37 自适应文字色（用户要求："识别下方元素颜色，切换黑色或者白色字体"）
+ *
+ * 机制（Apple 的 vibrancy 思路）：
+ *   ① App 侧一次性采样壁纸平均亮度（fetch→Blob→createImageBitmap→离屏 canvas，不会被污染）；
+ *   ② 读取**真实元素**的计算背景色（`.side` 的 rgb/rgba）；
+ *   ③ 合成 `面板色 × α + 底图 × (1-α)` ⇒ 偏亮 ⇒ 深色字；偏暗 ⇒ 浅色字；
+ *   ④ 结果写根属性 `data-glass-text`，由本规则切换文字令牌。
+ * 采样失败（无图/不支持）⇒ 不写属性 ⇒ 走主题默认 ⇒ **绝不因失败改变观感**。
+ * 令牌值定义在**令牌块**里（此处只用变量），因此不引入任何颜色字面量。 */
+:root {
+  --txt-1-onlight: #10141c;
+  --txt-2-onlight: #3a4454;
+  --txt-3-onlight: #64708a;
+}
+
+[data-glass-text='dark'] {
+  --txt-1: var(--txt-1-onlight);
+  --txt-2: var(--txt-2-onlight);
+  --txt-3: var(--txt-3-onlight);
+}
+
+/* ★ 档 4：**现有控件**按 iOS 26 规范统一处理
+ *（用户："现有的控件按钮等，也请按照 iOS26 规范一并处理"）
+ *
+ * 规范要点（Apple HIG / WWDC25 口径；见 docs/LIQUID-GLASS-PORT-PLAN.md §2/§3）：
+ * ① 形状＝**胶囊**（按钮 / 输入 / 滑块 / 开关轨道 / 分段控件）；
+ * ② 控件面＝**薄玻璃**：半透明底 + 极细亮描边 + 上沿镜面（`--ctrl-*` 已在档 4 配套层定义）；
+ * ③ **贴边镜面高光**来自烘焙高光贴图（`--ctrl-bg` 的第一层，screen 语义）；
+ * ④ 交互：hover 上浮 1px、按下下沉 0.5px（既有），**点击瞬间才取用实模糊**（Apple：滑块/开关仅交互瞬间取用玻璃）；
+ * ⑤ 可访问性：`:focus-visible` 保留可见焦点环；减少透明度 / 减少动态效果时全部走既有退化（不新增开关）。
+ *
+ * **全部限定 `[data-material='4']`** ⇒ 前三档一个像素都不动（遵守"前三档不得被改动"的红线）。 */
+/* 圆角（用户："按钮的圆角不要求抄 iOS；控件的圆角**同步浮动面板**即可"）
+   ⇒ 用与浮动面板**同一个令牌** `--r-lg`（16px），不再用 999px 胶囊。
+   形状语言因此统一为"面板圆角族"，控件看起来是面板的缩小件而非另一种造型。 */
+[data-material='4'] .btn,
+[data-material='4'] .input,
+[data-material='4'] .slider,
+[data-material='4'] .switch-track,
+[data-material='4'] .seg
+{
+  border-radius: var(--r-lg);
+}
+
+[data-material='4'] .btn:not(.btn-text)
+{
+  background: var(--ctrl-bg);
+  border: 1px solid var(--ctrl-line);
+  box-shadow: var(--ctrl-specular), var(--ctrl-shadow-rest);
+}
+
+[data-material='4'] .btn:not(.btn-text):not(:disabled):hover
+{
+  box-shadow: var(--ctrl-specular), var(--ctrl-shadow-hover);
+}
+
+[data-material='4'] .switch-track
+{
+  border: 1px solid var(--ctrl-line);
+  box-shadow: var(--ctrl-specular);
+}
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  /* 在 .content（flex column，T34 为槽位撑满而设）中普通页面不参与压缩：
+     flex:none = 不收缩不增长，内容超高时由 .content overflow-y 滚动；
+     否则设置页等长页会被 flex-shrink 压缩，分区卡内容（材质调节/底图上传）被挤没。 */
+  flex: none;
+}
+
+.page-actions {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+/* 滚动条：默认 Chromium 滚动条是一条「灰色半透明」竖带，压在内容区右缘（15px），
+   且不随主题变色——深色主题下尤其突兀，观感像贴了一块半透明贴纸。
+   处理：去掉轨道与按钮，滑杆用中性状态层令牌（hover/press 加深），宽度收窄；
+   取值全走令牌，随主题与材质自动换值。 */
+.content::-webkit-scrollbar,
+.side::-webkit-scrollbar,
+.log-view::-webkit-scrollbar,
+.nav-dropdown::-webkit-scrollbar {
+  width: var(--sp-2);
+  height: var(--sp-2);
+}
+
+.content::-webkit-scrollbar-track,
+.side::-webkit-scrollbar-track,
+.log-view::-webkit-scrollbar-track,
+.nav-dropdown::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.content::-webkit-scrollbar-thumb,
+.side::-webkit-scrollbar-thumb,
+.log-view::-webkit-scrollbar-thumb,
+.nav-dropdown::-webkit-scrollbar-thumb {
+  min-height: var(--sp-6);
+  border-radius: var(--r-pill);
+  background: var(--state-hover);
+}
+
+.content::-webkit-scrollbar-thumb:hover,
+.side::-webkit-scrollbar-thumb:hover,
+.log-view::-webkit-scrollbar-thumb:hover,
+.nav-dropdown::-webkit-scrollbar-thumb:hover {
+  background: var(--state-press);
+}
+
+/* 轨道两端与交汇处的默认箭头按钮一并去掉 */
+.content::-webkit-scrollbar-button,
+.side::-webkit-scrollbar-button,
+.log-view::-webkit-scrollbar-button,
+.nav-dropdown::-webkit-scrollbar-button {
+  display: none;
+}
+
+/* ===== 组件库（T20）：通用组件统一收口（经 ui.tsx 消费），全部走设计令牌 ===== */
+
+/* 按钮四态（T-A2）：静止 → 悬停（底色+阴影+上浮 1px）→ 按压（缩放 0.98 + 阴影减小）→ 焦点/禁用。
+   交互态一律 :not(:disabled) 守卫——禁用按钮不得响应悬停与按压。
+   过渡走 --duration-fast/--ease-standard；按压回弹落在规范 120–180ms 的退出区间。 */
+.btn {
+  /* 垂直内边距取 --sp-2：体系里没有 6px，压到 4px 会让按钮明显变矮、点击区偏小 */
+  padding: var(--sp-2) var(--sp-4);
+  border: 1px solid var(--ctrl-line);
+  border-radius: var(--r-sm);
+  background: var(--ctrl-bg);
+  color: var(--txt-1);
+  cursor: pointer;
+  font-size: 12px;
+  /* inline-flex：spinner 与文字需要基线对齐与统一间距（图标间距走 --sp-2） */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  box-shadow: var(--ctrl-shadow-rest);
+  transition: background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-standard);
+}
+
+.btn:not(:disabled):hover {
+  background: var(--state-hover);
+  box-shadow: var(--ctrl-shadow-hover);
+  transform: translateY(-1px);
+}
+
+.btn:not(:disabled):active {
+  background: var(--state-press);
+  box-shadow: var(--ctrl-shadow-press);
+  transform: scale(0.98);
+}
+
+/* 键盘焦点环（T48 补全）：全站交互控件统一 2px 强调色外环。
+   用 outline 而非 border —— 不占布局、不推动相邻元素；
+   只在 :focus-visible 生效，鼠标点击不会残留焦点环。
+   覆盖：按钮 / 侧栏导航（含模块下拉项）/ DOCK 项与关闭徽标 / 分段选择器 /
+   场景胶囊 / 输入框 / 选择器 / 滑块；开关走下方专门规则（焦点画在轨道上）。
+   outline 不是动画属性，「减少动态效果」无需也不应关闭它。 */
+.btn:focus-visible,
+.nav-item:focus-visible,
+.dock-item:focus-visible,
+.dock-close-btn:focus-visible,
+.seg:focus-visible,
+.chip:focus-visible,
+.input:focus-visible,
+.select:focus-visible,
+.slider:focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 1px;
+}
+
+/* 开关：可聚焦的是视觉隐藏的 input（1px + opacity 0），环必须画在可见的轨道上，
+   否则键盘用户看不到任何焦点反馈。 */
+.switch input:focus-visible + .switch-track {
+  outline: 2px solid var(--acc);
+  outline-offset: 1px;
+}
+
+/* 禁用态：半透明 + 无动效（transition: none 让状态瞬时，避免"还能点"的错觉） */
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+  transition: none;
+}
+
+/* 加载态（T-A3）：spinner 是**唯一允许的持续旋转**。
+   linear 与时长都令牌化（--ease-linear / --duration-spin），所以"禁 linear / 禁裸时长"
+   两条守卫无需开口子，例外被显式登记在令牌集里。 */
+.spinner {
+  width: var(--sp-3);
+  height: var(--sp-3);
+  /* 轨道色取对比度令牌 --txt-1 的 30%，而非控件描边 --ctrl-line：
+     后者在深色主题下（#2d3752）与控件底（#0d1322）几乎同色，轨道环会消失、
+     只剩顶弧——12px 下读起来是个橙点而不是"转圈"。 */
+  border: 2px solid color-mix(in srgb, var(--txt-1) 30%, transparent);
+  border-top-color: var(--acc);
+  border-radius: var(--r-pill);
+  animation: el-spin var(--duration-spin) var(--ease-linear) infinite;
+}
+
+@keyframes el-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.btn[data-loading='true'] {
+  color: var(--txt-2);
+}
+
+/* 加载中 ≠ 不可用：覆盖禁用态的 0.5 透明度（工作态应比禁用态更清晰），
+   光标用 progress 而不是 not-allowed。原生 disabled 保证不会重复点击。 */
+.btn[data-loading='true']:disabled {
+  opacity: 0.7;
+  cursor: progress;
+}
+
+/* 变体各自守色：通用悬停只管底色与阴影，边框颜色交给变体，
+   避免旧的通用 `.btn:hover` 边框规则把危险按钮的红边框改成强调色（B6 回归）。
+   T-A4：主按钮改「强调色实底 + 专用墨色」——原先 8% 透明底与次要按钮几乎无差，"主要"读不出来；
+   对比度与 .seg.active 同源（--acc 底 + --ink-on-acc 前景，实测 ≈8:1）。
+   注意：注释里不要写带花括号的 CSS 片段（单测块解析器是朴素正则，会误判）。 */
+.btn-primary {
+  background: var(--acc);
+  border-color: var(--acc);
+  color: var(--ink-on-acc);
+}
+
+.btn-primary:not(:disabled):hover {
+  background: var(--acc-soft);
+  border-color: var(--acc-soft);
+}
+
+.btn-secondary {
+  background: var(--ctrl-bg);
+  border-color: var(--ctrl-line);
+  color: var(--txt-1);
+}
+
+/* 危险变体：给一层可辨的危险色底（原先只有描边+文字变色，权重不足） */
+.btn-danger {
+  background: color-mix(in srgb, var(--bad) 10%, transparent);
+  border-color: var(--bad-line);
+  color: var(--bad);
+}
+
+.btn-danger:not(:disabled):hover {
+  background: color-mix(in srgb, var(--bad) 18%, transparent);
+  border-color: var(--bad);
+}
+
+/* 「文字」变体（规范四类之一）：无底无边，悬停才出中性层。
+   原 `.btn-icon` 已正名为 `.btn-text`——全仓唯一用例带的是文字（"关闭"）而非图标，
+   命名与实际不符；正名后变体集合与规范四类严格一致，无死类。 */
+.btn-text {
+  padding: var(--sp-1) var(--sp-2);
+  border-color: transparent;
+  background: transparent;
+  color: var(--txt-2);
+  box-shadow: none;
+}
+
+.btn-text:not(:disabled):hover {
+  border-color: transparent;
+  background: var(--state-hover);
+  color: var(--txt-1);
+  box-shadow: none;
+}
+
+/* 大尺寸修饰：用于标题页入口等主行动点 */
+.btn-lg {
+  padding: var(--sp-3) var(--sp-7);
+  border-radius: var(--r-lg);
+  font-size: 14px;
+}
+
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  cursor: pointer;
+}
+
+.switch input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.switch-track {
+  width: 40px;
+  height: 22px;
+  padding: 2px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--ctrl-line);
+  border-radius: var(--r-pill);
+  background: var(--ctrl-bg);
+}
+
+/* T52：开关 knob 的滑动带一点 Q 弹感（克制：只换缓动，时长与属性不变）。
+   knob 是实心控件、**不是玻璃层** ⇒ 不涉 AI_RULES §26（玻璃层不得参与位移动效）。 */
+.switch-knob {
+  width: 16px;
+  height: 16px;
+  border-radius: var(--r-pill);
+  background: var(--txt-2);
+  transition: transform var(--duration-normal) var(--ease-spring);
+}
+
+.switch input:checked + .switch-track {
+  border-color: var(--acc-line);
+  background: var(--acc-fill);
+}
+
+.switch input:checked + .switch-track .switch-knob {
+  transform: translateX(18px);
+  background: var(--acc);
+}
+
+.switch-label {
+  color: var(--txt-1);
+  font-size: 13px;
+}
+
+.select {
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--ctrl-line);
+  border-radius: var(--r-md);
+  background: var(--ctrl-bg);
+  color: var(--txt-1);
+  font-size: 12px;
+}
+
+.slider {
+  width: 180px;
+  accent-color: var(--acc);
+  cursor: pointer;
+}
+
+.input {
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--ctrl-line);
+  border-radius: var(--r-md);
+  background: var(--ctrl-bg);
+  color: var(--txt-1);
+  font-size: 12px;
+}
+
+.list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--bg-overlay);
+}
+
+/* T51：列表行 hover 反馈（此前无可点感）。
+   与既有 `.nav-item:hover` 同一配方；**状态过渡**不受"仅 transform/opacity"限制
+   （PRODUCT.md 明文允许状态过渡），且**并非** §24 禁止的灰纱承托层（那是为可读性加的静态成片灰层）。
+   只动颜色，不动宽高与内外边距（既有红线）。禁用态不给反馈。 */
+.list-row {
+  transition:
+    background var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+}
+
+.list-row:hover:not(:disabled):not([aria-disabled='true']) {
+  background: var(--state-hover);
+}
+.list-row-main {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.list-row-actions {
+  display: inline-flex;
+  gap: var(--sp-2);
+  flex: none;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  /* 模态遮罩恒为半透明黑，不随主题变（Windows「Smoke」：always translucent black）。
+     原先 color-mix(--bg-0) 在浅色主题下会变成浅灰遮罩，与"压暗背景"的语义相反。 */
+  background: var(--scrim);
+}
+
+.modal-panel {
+  position: relative;
+  min-width: 280px;
+  max-width: min(420px, 90vw);
+  padding: var(--sp-5);
+  background: var(--card-bg);
+  backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+  -webkit-backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+  border: 1px solid var(--mat-border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--mat-edge-light), var(--mat-edge-thick), var(--mat-glow), var(--mat-shadow-1),
+    var(--mat-shadow-2);
+}
+
+.confirm-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.confirm-message {
+  margin: 0;
+  color: var(--txt-1);
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(48px + var(--sp-4));
+  transform: translateX(-50%);
+  z-index: 40;
+  padding: var(--sp-2) var(--sp-4);
+  background: color-mix(in srgb, var(--bg-card-2) calc(var(--mat-alpha) * 100%), transparent);
+  backdrop-filter: blur(var(--mat-blur));
+  -webkit-backdrop-filter: blur(var(--mat-blur));
+  border: 1px solid var(--acc-line);
+  border-radius: var(--r-md);
+  box-shadow: var(--mat-shadow-1), var(--mat-shadow-2);
+  color: var(--txt-1);
+  font-size: 12px;
+  max-width: min(520px, 86vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty-state {
+  padding: var(--sp-5);
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--r-md);
+  color: var(--txt-3);
+  text-align: center;
+  font-size: 12px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--sp-4);
+}
+
+/* 卡片标题：走文字令牌而非强调色（Windows：不要在亚克力上放强调色文字），
+   并去掉 uppercase（中文无大小写，字形不变 = 白做）。 */
+.card h1 {
+  font-size: 15px;
+  letter-spacing: 1px;
+  color: var(--txt-1);
+  margin: 0 0 var(--sp-2);
+}
+
+.kv {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin: 0;
+}
+
+.kv > div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  border-bottom: 1px dashed var(--line);
+  padding-bottom: var(--sp-1);
+}
+
+.kv dt {
+  color: var(--txt-2);
+}
+
+.kv dd {
+  margin: 0;
+  font-family: 'Rajdhani', Consolas, monospace;
+}
+
+.error-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  color: var(--bad);
+  font-family: 'Rajdhani', Consolas, monospace;
+  font-size: 12px;
+}
+
+.module-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.module-card {
+  flex: none;
+}
+
+.module-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--sp-3);
+}
+
+.module-head h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.module-head .dim {
+  font-size: 12px;
+}
+
+.dim {
+  color: var(--txt-3);
+  font-family: 'Rajdhani', Consolas, monospace;
+}
+
+.module-error {
+  color: var(--bad);
+  font-size: 12px;
+  font-family: 'Rajdhani', Consolas, monospace;
+  word-break: break-all;
+}
+
+.web-url {
+  margin: var(--sp-2) 0 0;
+  word-break: break-all;
+}
+
+.badge {
+  padding: 1px var(--sp-2);
+  border-radius: var(--r-pill);
+  font-size: 11px;
+  font-family: 'Rajdhani', Consolas, monospace;
+  border: 1px solid var(--line-strong);
+  color: var(--txt-2);
+}
+
+.badge-started {
+  color: var(--ok);
+  border-color: var(--ok-line);
+}
+
+.badge-failed,
+.badge-invalid {
+  color: var(--bad);
+  border-color: var(--bad-line);
+}
+
+.badge-disabled {
+  color: var(--warn);
+  border-color: var(--warn-line);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1);
+  margin: var(--sp-3) 0;
+}
+
+.chip {
+  padding: 2px var(--sp-2);
+  border-radius: var(--r-sm);
+  background: var(--chip-bg);
+  border: 1px solid var(--chip-line);
+  color: var(--acc-soft);
+  font-size: 11px;
+  font-family: 'Rajdhani', Consolas, monospace;
+}
+
+/* 模块卡的操作行：**单行**（网页工具按钮与生命周期按钮同容器）；
+   align-items:center 保证按钮高度一致，flex-wrap 让窄窗优雅换行而不是撑破卡片。 */
+.module-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+
+.style-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.style-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+/* 网页工具底部条（高 48px——主进程据此给 embedded 视图留出内缩）；同为玻璃面。
+   T19 起全宽跨两列占底部行，几何契约（全宽 × 48px）不变。 */
+.tool-bar {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  /* T38：高度取单一真源（与主进程的底部内缩同值）—— 不得硬编码 */
+  height: var(--dock-h);
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 0 var(--sp-4);
+  background: var(--card-bg);
+  backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+  -webkit-backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+  border: 1px solid var(--mat-border);
+  border-radius: var(--r-md);
+  box-shadow: var(--mat-edge-light), var(--mat-edge-thick), var(--mat-glow), var(--mat-shadow-1),
+    var(--mat-shadow-2);
+}
+
+/* T28 玻璃折射场景层：复绘壁纸（attachment:fixed 与 .wallpaper 对齐视口），
+   经 --mat-refract 滤镜链（feDisplacementMap 位移 + 模糊 + 饱和）产生真实折射。
+   无壁纸（--wallpaper-url:none）→ 层透明，仅剩 backdrop 模糊（如实光学：无图可折射）；
+   --mat-scene-op:0（档 1/减少透明度）即整层不可见。z-index:-1 画在底色之上、内容之下。 */
+.side::before,
+.tool-bar::before,
+.modal-panel::before,
+.card::before,
+.content::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image: var(--wallpaper-url);
+  background-size: var(--scene-size, cover);
+  background-position: var(--scene-pos, center);
+  background-repeat: var(--scene-repeat, no-repeat);
+  background-attachment: fixed;
+  opacity: calc(var(--mat-scene-op) * var(--wallpaper-opacity));
+  filter: var(--mat-refract);
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* T28 玻璃色散层：边缘 RGB 通道分离（红/蓝 inset 边 + screen 混合），
+   强度由 --mat-disperse 控制（档 1/减少透明度 none 即不渲染）。
+   内容层（.card，T36）不参与：色散属玻璃光学，只留给 chrome。 */
+.side::after,
+.tool-bar::after,
+.modal-panel::after,
+.card::after,
+.content::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: var(--mat-disperse);
+  mix-blend-mode: screen;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.tool-bar-label {
+  color: var(--txt-3);
+  font-size: 12px;
+}
+
+.tool-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
+  border: 1px solid var(--acc-line);
+  border-radius: var(--r-sm);
+  font-family: 'Rajdhani', Consolas, monospace;
+  font-size: 12px;
+}
+
+/* ===== 设置框架（T16）：6 组分组卡片 + 分段选择器（全部消费设计令牌） ===== */
+
+.settings-groups {
+  display: grid;
+  gap: var(--sp-4);
+}
+
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-5);
+}
+
+.settings-group h2 {
+  font-size: 15px;
+  letter-spacing: 1px;
+}
+
+/* T31 模块页槽位：内容区内占位壳——真实页面由主进程 WebContentsView 按
+   上报矩形叠加渲染（React 之上）；壳承载布局观测（ResizeObserver）与
+   失败态提示，入场动效复用 el-rise-in（由 .page 容器提供）。
+   T36：模块页属**内容层**，槽位改标准材质（半实色 + 描边 + 层级阴影，无 backdrop-filter）。
+   模块页自身页面透明，故这层底就是它在应用里的"纸面"。 */
+.module-page-host {
+  position: relative;
+  flex: 1;
+  min-height: 60vh;
+  display: grid;
+  place-items: center;
+  /* 内容层玻璃（按用户要求恢复原有三档材质效果；配方与 .card 一致，不含 veil）。
+     注：曾怀疑 `--card-bg` 会因 `--mat-alpha-role` 缺失而整体失效，实测**不成立** ——
+     `effectiveMaterial()` 只返回 1|2|3，`App.tsx` 总会写入 `data-material`
+     ⇒ 该令牌始终可解析 ⇒ 已回滚那次兜底改动（`theme.spec.ts` 也要求本行消费 `var(--card-bg)`）。 */
+  background: var(--card-bg);
+  backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+  -webkit-backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+  border: 1px solid var(--mat-border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--mat-edge-light), var(--mat-edge-thick), var(--mat-glow), var(--mat-shadow-1),
+    var(--mat-shadow-2);
+  animation: el-rise-in var(--duration-enter) var(--ease-decelerate);
+}
+
+.module-page-note {
+  color: var(--txt-3);
+  font-size: 12px;
+}
+
+/* 第三方工具槽位（laplacelive-link 等 web 工具遵循本体 UI 规范）：玻璃壳 + 内容区内缩。
+   WebContentsView 按上报的**壳内容盒**矩形叠加（比壳内缩一圈）——四角露出圆角玻璃边；
+   侧栏不再被全幅覆盖。几何/显隐走 T30 rect/visible 通道（与模块页槽位同契约）。 */
+.tool-slot {
+  position: relative;
+  flex: 1;
+  min-height: 60vh;
+  /* 按用户要求恢复原有三档材质效果：内容层玻璃（配方与 .card 一致，不含 veil）。 */
+  background: var(--card-bg);
+  backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+  -webkit-backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+  border: 1px solid var(--mat-border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--mat-edge-light), var(--mat-edge-thick), var(--mat-glow), var(--mat-shadow-1),
+    var(--mat-shadow-2);
+  padding: var(--sp-3);
+  overflow: hidden;
+  animation: el-rise-in var(--duration-enter) var(--ease-decelerate);
+}
+
+/* ---------- T28 基础动效（克制：仅 transform/opacity、ease-out、≤300ms） ----------
+   一次性动效，无持续循环；reduce-motion 全局开关见材质段
+   （[data-reduce-motion='1'] * → transition/animation: none，优先级覆盖一切）。
+   低配降级：fps 降档时写 data-motion-low='1' 禁用非必要动效。 */
+
+@keyframes el-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ★ 档 4 专属的"材质化"入场关键帧（研究诊断 #13）
+   为什么单独一套：**关键帧无法按档位作用域** ⇒ 若直接改 el-rise-in，前三档的入场行为也会被改
+   （用户实测"前三档被修出 bug"）。因此保留原关键帧不动，档 4 另用一套，由下方 animation-name 覆盖。 */
+@keyframes el-materialize-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+    --mat-scene-op: 0;
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    --mat-scene-op: 1;
+  }
+}
+
+@keyframes el-materialize-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+    --mat-scene-op: 0;
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    --mat-scene-op: 1;
+  }
+}
+
+@keyframes el-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%);
+  }
+}
+
+/* T49 退场：与进场镜像（下沉 + 淡出）。两帧都保留 translateX(-50%) 居中不变式，
+   否则退场过程中水平跳动。只动 transform/opacity；reduce-motion 由全局规则归零。 */
+@keyframes el-toast-out {
+  from {
+    opacity: 1;
+    transform: translateX(-50%);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px);
+  }
+}
+
+@keyframes el-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes el-pop-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+/* 导航二级下拉展开/折叠（T-A5）：位移 4px——比页面进入的 8px 更克制，
+   因为它是侧栏内的局部展开，不是整页转场。 */
+@keyframes el-drop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes el-drop-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+/* 列表项错峰入场（T-A6）：淡入 + 上移 6px，比整页进入的 8px 更轻。 */
+@keyframes el-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 页面/标签切换：淡入 + 轻微上移（条件渲染 remount 触发一次） */
+.page {
+  animation: el-rise-in var(--duration-enter) var(--ease-decelerate);
+}
+
+/* 弹窗：遮罩淡入上移、面板缩放入场；退场由 data-closing='true' 走缩放淡出 */
+.modal {
+  animation: el-rise-in var(--duration-enter) var(--ease-decelerate);
+}
+
+.modal-panel {
+  animation: el-pop-in var(--duration-normal) var(--ease-decelerate);
+}
+
+.modal-panel[data-closing='true'] {
+  animation: el-pop-out var(--duration-fast) var(--ease-accelerate) forwards;
+}
+
+/* 浮层提示：底部升起（基线含 translateX(-50%) 居中，关键帧保持合成） */
+.toast {
+  animation: el-toast-in var(--duration-normal) var(--ease-decelerate);
+}
+
+/* T49 退场：data-closing 由 ui.tsx 在文案清空时置位，forwards 定格末帧，
+   组件延时卸载（TOAST_EXIT_MS 160ms ≥ --duration-fast 120ms，余量防"跳没"）。 */
+.toast[data-closing='true'] {
+  animation: el-toast-out var(--duration-fast) var(--ease-accelerate) forwards;
+}
+
+/* 玻璃悬停高光（T-A8）：悬停时把顶缘高光沿面板内侧轻移 2px——**只动位置、不动强度**，
+   不做持续流动/扫光（规范禁持续动画与大面积视差）。
+   box-shadow 的过渡由上方玻璃面 transition 统一提供。
+   **不含 `.card`**：静态内容卡不加入场/悬停动画（规范"不给每个卡片加"），
+   悬停高光只给 chrome（侧栏/工具条）与浮层（弹窗/下拉/工具槽位）。 */
+.side:hover,
+.tool-bar:hover,
+.modal-panel:hover,
+.nav-dropdown:hover,
+.tool-slot:hover {
+  box-shadow: var(--mat-edge-light-hover), var(--mat-edge-thick), var(--mat-glow), var(--mat-shadow-1),
+    var(--mat-shadow-2);
+}
+
+/* 可交互元素：悬停轻微上浮、按下轻微缩小。
+   `.btn` 已自带完整四态（T-A2），故从这三条聚合规则中移出，避免覆盖其多属性过渡；
+   剩余导航项与分段项同样加 :not(:disabled) 守卫。 */
+.nav-item,
+.seg {
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+
+.nav-item:not(:disabled):hover,
+.seg:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.nav-item:not(:disabled):active,
+.seg:not(:disabled):active {
+  transform: scale(0.98);
+}
+
+/* 材质档位/主题/底图切换：颜色、描边、阴影、透明度平滑过渡（一次性切换）。
+   时长取 --duration-slow（250ms，规范要求 250–300ms 区间的下界）。
+   **刻意不过渡 backdrop-filter**：模糊半径插值会持续整面重绘，而换档时模糊瞬时到位
+   几乎不影响观感——去掉它是这一档最划算的性能让步（低配/直播场景尤其重要）。 */
+.card,
+.side,
+.tool-bar,
+.modal-panel,
+.toast {
+  transition: background-color var(--duration-slow) var(--ease-standard),
+    border-color var(--duration-slow) var(--ease-standard),
+    box-shadow var(--duration-slow) var(--ease-standard), opacity var(--duration-slow) var(--ease-standard);
+}
+
+/* T34 更新日志页与"本次更新"对话框。
+   条目来自 CHANGELOG.md，长度不可控（历史条目偏长），故正文可滚动而不是把面板撑爆。 */
+.changelog-release {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.changelog-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+.changelog-version {
+  font-size: 15px;
+  margin: 0;
+}
+.changelog-date {
+  font-size: var(--fs-xs, 12px);
+  color: var(--txt-2);
+}
+.chip-current {
+  border-color: var(--acc-line);
+  color: var(--acc);
+}
+.changelog-summary {
+  border-left: 2px solid var(--acc-line);
+  padding-left: var(--sp-3);
+}
+.changelog-summary p {
+  margin: 0 0 var(--sp-1);
+  font-size: 13px;
+  color: var(--txt-1);
+}
+.changelog-section h3 {
+  font-size: 13px;
+  color: var(--acc);
+  margin: var(--sp-2) 0 var(--sp-1);
+}
+.changelog-section ul {
+  margin: 0;
+  padding-left: var(--sp-4);
+}
+.changelog-section li {
+  font-size: 12px;
+  color: var(--txt-2);
+  line-height: 1.6;
+  margin-bottom: var(--sp-1);
+}
+.changelog-foot {
+  margin: 0;
+  font-size: 11px;
+  color: var(--txt-2);
+}
+.changelog-title {
+  font-size: 15px;
+}
+.changelog-hint {
+  font-size: 12px;
+  color: var(--txt-2);
+  align-self: center;
+}
+
+.whatsnew {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  max-width: 640px;
+}
+.whatsnew-title {
+  margin: 0;
+  font-size: 16px;
+}
+.whatsnew-date {
+  margin: 0;
+  font-size: 12px;
+  color: var(--txt-2);
+}
+.whatsnew-body {
+  max-height: 52vh;
+  overflow-y: auto;
+  padding-right: var(--sp-2);
+}
+.whatsnew-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+}
+
+/* 低配自动降级（fps 降档联动）：非必要动效全关。
+   T-A7 起改用**通用选择器**——原先逐个列元素，漏了 `.switch-knob`（低帧率下开关滑块仍在动），
+   且每加一个组件都要记得往清单里补。帧率优先时全关是正确取舍。
+   同样加 `:root` 前缀提升特异性（见上方说明）。 */
+:root[data-motion-low='1'] * {
+  animation: none;
+  transition: none;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: var(--sp-2) 0;
+}
+
+.settings-row-label {
+  font-size: 13px;
+  color: var(--txt-1);
+}
+
+.settings-pending {
+  margin-top: var(--sp-1);
+}
+
+.seg-group {
+  display: inline-flex;
+  gap: var(--sp-1);
+}
+
+.seg {
+  padding: var(--sp-1) var(--sp-3);
+  border: 1px solid var(--ctrl-line);
+  border-radius: var(--r-md);
+  background: var(--ctrl-bg);
+  color: var(--txt-2);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.seg:hover {
+  border-color: var(--acc);
+  background: var(--state-hover);
+}
+
+/* 选中态：强调色「实底 + 专用前景色」。
+   原先用 --acc-soft 作底 + 白字，对比度约 1.5:1（远低于 4.5:1 红线）；
+   改用 --acc 作底 + --ink-on-acc 文字（实测 ≈8.5:1），也符合
+   「强调色给主操作的背景、不给文字」的既有结论。 */
+.seg.active {
+  border-color: var(--acc);
+  background: var(--acc);
+  color: var(--ink-on-acc);
+  font-weight: 500;
+}
+
+.seg:active {
+  background: var(--state-press);
+}
+
+/* 设置行内按钮组（T17 全局底图：选择图片 / 恢复默认），按钮样式走组件库 */
+.settings-actions {
+  display: inline-flex;
+  gap: var(--sp-2);
+}
+
+/* ===== 标题页（T18）：应用标识 + 进入入口，进入前主界面不挂载 =====
+   v0.1.8-beta1.1：删除「E」方块图标（早期占位符，新主视觉完成前不再加入）。
+   方块原本是 88px 见方、上下各 16px 间距；移除后由标题自身承担品牌分量：
+   字号 28 → 32px、字距 2 → 4px，并给进入按钮更多呼吸。 */
+
+.title-screen {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+.title-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-4);
+}
+
+.title-name {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  color: var(--txt-1);
+}
+
+.title-version {
+  color: var(--txt-2);
+  font-family: 'Rajdhani', Consolas, monospace;
+  font-size: 13px;
+}
+
+/* 标题页入口（T-A4 收归体系）：只保留布局，皮肤完全交给 `.btn` + primary 变体 + `.btn-lg`，
+   避免出现"体系外第 5 种按钮"。 */
+.title-enter {
+  margin-top: var(--sp-6);
+}
+
+/* ===== 日志查看（T21 设置项补全）：模态内日志文本，等宽 + 限高滚动 ===== */
+
+.log-view {
+  margin: 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--bg-card-2);
+  color: var(--txt-2);
+  font-family: 'Rajdhani', Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  max-height: 50vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ================================================================== *
+ * T37 后置规则（刻意放在文件末尾）
+ *
+ * 为什么放末尾：既有守卫用"首个 `.类名 {`"（或"某标记后的首个块"）提取规则体，
+ * 若把下面这些规则写在基础规则之前，守卫会误取到它们、以为基础规则变了。
+ * 放到末尾后：① 守卫仍取到基础规则；② 本组特异性更高（:root[…] / [data-…]），
+ * 优先级不受位置影响。以后新增同类"状态/档位作用在既有类上"的规则，也请放这里。
+ * ================================================================== */
+
+/* T37 材质化过渡（研究诊断 #13）：把 `--mat-scene-op`（场景/折射层不透明度）注册成
+   **可动画的数值属性** —— 自定义属性默认不可插值，正是这一点让"调制折射量"过去做不到。
+   注册后，`el-rise-in` / `el-pop-in` 两个入场关键帧会同时把它从 0 推到 1
+   ⇒ 页面与浮层"材质化"进出，而不是单纯淡入。只动一个 opacity 量级的属性，仍走合成。
+   （reduce-motion / 低帧率降档由既有全局规则关闭动画，故此处无需额外开关。） */
+@property --mat-scene-op {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0;
+}
+
+/* T37 指针驱动高光（用户决策：**四档全部默认开**，降级开关关闭）
+   只读 --light-x/--light-y（App 用 rAF 节流写入）⇒ 零滤镜、零 canvas、不触发布局。 */
+/* T37 指针高光**已移除**（用户实测：范围与跟随位置都不对）。
+   原因：把高光画在**整块面板**上用的是一个视口坐标的高光点 ⇒ 对每块面板都是错位，
+   而且 40%×40% 的半径在大面板上会摊成一片灰雾（正是"灰色薄纱"的观感）。
+   正确做法见下方"控件 hover 镜面高光"：**只在控件自身**、纯 CSS、位置恒正确。 */
+
+/* T37 档 4 = clear 变体：**亮背景下叠 35% 暗压层**（Apple 对 clear 的处方）。
+   判定来自一次性采样（App 在壁纸变化时采样一次，写 data-backdrop-luma）；
+   失败/无壁纸 ⇒ 'dark' ⇒ 本规则不生效，行为与加此功能之前一致。
+   颜色取主题令牌 --scrim（60% 黑）的 58% ⇒ 约 35%，不写颜色字面量。 */
+/* T37 亮背景暗压层**已移除**（应用级验证发现它依赖的"一次性采样"在真实运行时不生效：
+   壁纸经自有协议加载，在 canvas 里取像素会被拦/污染 ⇒ 采样永远失败）。
+   结论：**不保留无法验证的特性**。可读性只由两条能验证的杠杆承担：
+   ① 结构性——内容层用标准材质（T36）；② 档 4 提升文字自身对比度（--txt-2）；
+   外加既有的「高对比度」开关与自动降档兜底。 */
+
+/* T37 档 4 的**暗压层**（带亮底图的目视验证结论）
+   根因：侧栏/工具条/弹窗的"折射场景层"会把整张底图（模糊后）以 --mat-scene-op 画满整块面板；
+   档 4 把它拉到 1.0（档 2 只有 0.6）⇒ **亮底图全量透上来**，浅色文字被淹没 ——
+   用户看到的"灰色薄纱底图"正是这一层，而不是任何蒙版。
+   正解即 Apple 对 clear 变体的处方：clear 置于亮内容上时必须配**暗压层**。
+   这里**不需要任何采样**（也就绕开了采样在真实运行时不可用的问题）：
+   档 4 本身就是用户主动选择的"最透档"，因此**恒定**压一层约 33% 的黑（取主题令牌 --scrim 的 55%），
+   观感是"烟熏玻璃"而非"糊了一层灰"，同时把文字对比度拉回来。
+   想要最大通透度可用档 3。 */
+/* T37 已移除：chrome 场景层的暗压层（同属文档 §6 第 6 项"远期"）。
+   回到基础 `.side::before / .tool-bar::before / .modal-panel::before` 的定义即可
+   —— 那里本来就只有"壁纸 + --mat-refract"，没有额外压层。 */
+
+/* ★ T37 重做：**烘焙折射正式接线**（研究文档 §6 第 5 项 SDF 位移图 + 第 3 项真三通道色散）
+ *
+ * 上一轮"玻璃效果消失"的真正原因：我把烘焙滤镜挂在了面板的 **`backdrop-filter`** 上 ——
+ * 该路径对 `feImage` 支持有限，一旦 Chromium 丢弃整条滤镜列表，写在同一值里的 `blur()` 也一起失效。
+ *
+ * 正确位置（与项目既有架构一致）：折射属于**场景层**（`.side::before` 等负责"把壁纸当透镜来画"），
+ * 它用的是**普通 `filter`** ⇒ `feImage` 安全，且失败只影响这一层，面板本体的 backdrop blur 永远在。
+ * 注入成功（App 里 ensureBakedFilter 返回 true）才置 data-baked ⇒ 未成功自动回退静态强折射滤镜。
+ * 位移图与滤镜均为**一次性烘焙 + 参数缓存 + objectBoundingBox 尺寸无关**（性能守则不变）。 */
+[data-material='4'][data-baked='1'] {
+  --mat-refract: blur(var(--wallpaper-blur)) url(#glass-refract-baked)
+    blur(var(--mat-blur)) saturate(var(--mat-sat));
+}
+
+/* ★ 苹果的**自适应明度**（研究文档 §3 引 Apple 原文：regular 材质
+   "blurs and **adjusts the luminosity** of background content to maintain legibility"）
+ *
+ * 这是**材质自身**的明度传递 —— 不是叠一层灰膜 ✗（AI_RULES 24 禁的是覆盖层）：
+ * 它把亮底图的明度压下来 ⇒ 浅色文字重新有对比度；暗底图时几乎无感。
+ * 这一步替代了我此前那些被否定的做法（暗压层/暗色调/承托带），是**官方机制**。
+ * 资源：与 blur/saturate 写在同一条 backdrop-filter 里 ⇒ 无额外绘制成本。 */
+[data-material='4'] .side,
+[data-material='4'] .tool-bar,
+[data-material='4'] .modal-panel,
+[data-material='4'] .nav-dropdown,
+[data-material='4'] .card,
+[data-material='4'] .module-page-host,
+[data-material='4'] .tool-slot {
+  backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat)) brightness(0.86);
+  -webkit-backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat)) brightness(0.86);
+}
+
+/* ★ 档 4 控件材质**补齐**：开关（轨道 + 滑块）。此前只覆盖了按钮/分段/输入/下拉。
+   开关 = 玻璃轨道（半透明 + 顶部高光 + 厚度阴影）+ 受光滑块；
+   动效近似苹果"液态"手感：按下时轨道轻微横向拉伸（只动 transform ⇒ 不触发布局）。 */
+[data-material='4'] .switch-track {
+  border-color: var(--ctrl-line);
+  background: var(--ctrl-bg);
+  box-shadow: var(--ctrl-specular), var(--ctrl-shadow-rest);
+  transition: transform var(--duration-fast) var(--ease-decelerate),
+    background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+}
+
+[data-material='4'] .switch:active .switch-track {
+  transform: scaleX(1.06);
+}
+
+[data-material='4'] .switch-knob {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+ *
+ * 实现要点：**全视口固定覆盖层**，圆心直接取指针坐标（`--light-x/--light-y`，px）
+ * ⇒ 天然"以指针为中心"，不需要任何逐元素换算。
+ * （此前那版把径向渐变画在**面板**上、却用视口坐标定位 ⇒ 每块面板都错位，用户实测否定。）
+ *
+ * 资源：一个 fixed 伪元素 + 一个 radial-gradient ⇒ **零滤镜、零 canvas、不触发布局**；
+ * 跟随更新由 App 的 rAF 节流写入（每帧最多一次），且尊重「减少动态效果」与低帧率降档
+ * （那两种情况下 App 不写 data-light，本层 opacity 恒为 0 ⇒ 完全不绘制）。 */
+body::after {
+  content: '';
+  position: fixed;
+  left: var(--light-x, 0);
+  top: var(--light-y, 0);
+  /* 尺寸走 vmin（跟随视口；不写 px 字面量 —— 项目红线：px 只用 4px 体系里的值） */
+  width: 12vmin;
+  height: 12vmin;
+  /* 用 transform 把圆心对到指针上：不动布局、不写负 px 外边距，且只走合成 */
+  transform: translate(-50%, -50%);
+  border-radius: var(--r-pill); /* 圆形走令牌 */
+  pointer-events: none;
+  /* 层级：内容之上、弹窗/提示之下 */
+  z-index: 25;
+  opacity: 0;
+  transition: opacity var(--duration-normal) var(--ease-standard);
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--txt-1) 7%, transparent) 0%,
+    color-mix(in srgb, var(--txt-1) 3%, transparent) 45%,
+    transparent 70%
+  );
+  mix-blend-mode: screen;
+}
+
+:root[data-material='4'][data-light='1'] body::after {
+  opacity: 1;
+}
+
+/* ★ T37 烘焙**镜面高光**挂层（研究文档 §6 第 2 项：烘焙高光贴图 + `lightAngle`）
+ *
+ * 挂在**色散层**（`::after`，那层本来就带 `mix-blend-mode: screen`）上 ⇒ 高光以 screen 叠加在玻璃上，
+ * 得到"玻璃被打光"的物理感（这是此前最缺的一环，之前的 inset 边缘高光只是描边）。
+ * 贴图由 App 按指针位置写入 `--glass-highlight`：**单一光源角度**（以窗口中心为原点），
+ * 11.25° 分档 ⇒ 全生命周期最多 32 张、且走缓存只生成一次（性能守则）。
+ * `background-size: 100% 100%` ⇒ 与位移图一样**尺寸无关**。
+ * 未注入（或已回退）时 var 取 `none` ⇒ 该层只剩色散，行为与之前完全一致（安全回退）。 */
+/* 档 4 的"材质化"入场：只覆盖**动画名**，时长/缓动沿用各处原有声明
+   ⇒ 前三档完全不受影响（它们的 el-rise-in / el-pop-in 已恢复原样）。 */
+[data-material='4'] .page,
+[data-material='4'] .modal {
+  animation-name: el-materialize-in;
+}
+
+/* ★★★ 档 4 回归修复（用户实测：web 页在档 4 下"突破浮动面板"，且每次切页重放动画都会复现）
+ *
+ * 上面那条 materialize 入场动画**原本也作用在 `.module-page-host` / `.tool-slot` 上** ✗。
+ * 但这两个槽位里嵌的是**原生 `WebContentsView`** —— DOM 容器被 transform（位移/缩放）时，
+ * 原生层**不跟着动** ✗ ⇒ 动画期间页面看起来"顶出/突破浮动面板"，等价于用户描述的
+ * "web 界面突破浮动面板、盖住其它元素"。
+ *
+ * 机制定论：**嵌原生视图的容器不得参与任何 transform 动画**。动效只作用于纯 DOM 面板
+ * （`.page` / `.modal` / 侧栏 / 内容面板），槽位的"材质化"由既有玻璃配方（背景/描边/圆角/高光）承担。
+ * 机械守卫：`tests/unit/slot-animation-guard.spec.ts`（断言 materialize 块不含槽位选择器、
+ * 且槽位在档 4 显式 `animation: none`）。
+ */
+[data-material='4'] .module-page-host,
+[data-material='4'] .tool-slot
+{
+  animation: none;
+}
+
+[data-material='4'] .modal-panel {
+  animation-name: el-materialize-pop-in;
+}
+
+/* ★ 已移除：**整面**烘焙高光层（用户实测"功能块四周那些巨大无比的随动高光"）
+ *
+ * 原因：把高光贴图铺满整块面板、再随指针角度换图 ⇒ 每块面板上都在滑动一大片亮斑，
+ * 观感"巨大且随动"。参考开源实现（如 VII-Cae/hyalite--liquid-glass 与 lucasromerodb）：
+ * 高光是**贴着边缘的细高光**（rim/specular），**不是**整面 sheen。
+ * 因此本层撤掉，只保留 CSS 的**边缘**高光（--mat-edge-light / --ctrl-specular）与指针圆斑。
+ * 烘焙高光贴图的生成器与测试**保留**（将来若要做"边缘 rim 高光"可直接复用）。 */
+
+/* T37 控件 hover 镜面高光（取代被移除的"指针跟随高光"）
+   只在**控件自身**上画一条**顶部**高光：位置由元素边界决定 ⇒ 恒正确，不需要任何坐标跟踪、
+   不需要 JS、也不会在大面板上摊成灰雾（这正是上一个方案翻车的地方）。
+   Apple 口径：控件只在**交互瞬间**取用液态玻璃 —— 这里是同一思路的静止成本为零版本。 */
+[data-material='4'] .btn:not(:disabled):hover,
+[data-material='4'] .seg:not(:disabled):hover,
+[data-material='4'] .nav-item:not(:disabled):hover {
+  background-image: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--txt-1) 10%, transparent),
+    transparent 55%
+  );
+}
+
+/* T37 烘焙折射：**能力探测通过**（App 注入 glass-refract-baked 成功后置 data-baked-refract=1）
+   才把档 4 的折射从静态噪声滤镜换成**烘焙 SDF 位移图**。
+   未通过时本规则不生效 ⇒ 档 4 继续用 #glass-refract-strong（观感降一档但绝不报错；
+   未定义 id 的 filter URL 会让整条 filter 声明失效，比"降一档"糟得多）。 */
+/* T37 烘焙折射切换**已移除**（用户实测：装上后"玻璃效果消失"）。
+   原因：`CSS.supports('backdrop-filter','url(#id)')` 只校验**语法**，不保证该滤镜链
+   （feImage + 三通道位移）在 backdrop-filter 路径里可用；一旦 Chromium 丢弃整条滤镜列表，
+   连同一并写的 `blur()` 也一起失效 ⇒ 玻璃变平、观感全无。
+   结论：**在真实观感验收通过前，档 4 只用静态 #glass-refract-strong**（稳定、可预期）。
+   glass-bake 的生成器与滤镜构造保留（有测试、可复用），但**不接入** --mat-refract。 */
+
+/* T37 局部承托（评估文档 §202 的既定方向）
+   亮背景下，给**最暴露的 chrome 文字**（侧栏与下拉的标签）加一条**左密右疏**的局部承托带，
+   而不是整面薄纱 —— 整面薄纱（--mat-veil）已被评估文档判定为错解并退休。
+   只在"档 4（clear 变体）+ 亮背景"下生效 ⇒ 正常场景零影响、零成本。
+   颜色取主题令牌 --scrim 的两个比例，不写颜色字面量。 */
+/* T37 局部承托**已移除**（用户实测：看起来又是"灰色薄纱底图"）。
+   教训与 T36 一致：任何**成片**的承托带，只要能被看见，就会被读成"糊了一层灰"。
+   可读性只保留两条**不会显形**的杠杆：
+   ① 结构性——内容层用标准材质（T36）；
+   ② 提文字自身对比度（档 4 的 --txt-2 提升，见档 4 配套层块）；
+   外加既有的「高对比度」开关与自动降档兜底。 */
+
+/* ==========================================================================
+ * T38 DOCK 任务栏（常驻；参考 macOS Dock）
+ * 用户决定：Q3=B（图标化、居中、hover 放大）+ **必须显示模块名称**；Q4=A（最左端侧栏开关）。
+ *
+ * 铁律（与几何契约直接相关，守卫 tests/unit/dock-height.spec.ts）：
+ *   **hover 放大只用 transform: scale** ⇒ 任务栏**高度恒定** ⇒ 原生视图底部内缩值不受影响。
+ *   绝不允许在 hover/内容变化时改变 .tool-bar 或 .dock-item 的 height（否则 WebContentsView
+ *   的几何会上报错位，甚至盖住任务栏）。
+ * 材质：**只消费现有档位令牌**（--card-bg / --mat-* / --ctrl-* / --r-*）⇒ 四档自动跟随，
+ *   不新建材质、不重定义任何 --mat-*（用户口径："新布局基于现有材质等级"）。
+ * 灰纱红线（AI_RULES 24）：本段不得出现成片半透明灰层/平面渐变承托。
+ * ========================================================================== */
+.dock {
+  position: relative; /* 状态区绝对定位靠右，中间图标组真正居中（Q3=B） */
+  display: flex;
+  align-items: center;
+  justify-content: center; /* 用户选定 Q3=B：图标化、**居中排列**（状态区仍靠右） */
+  gap: var(--sp-2);
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden; /* 高度恒定：放大用 transform，不撑高 */
+  scrollbar-width: none;
+}
+
+.dock::-webkit-scrollbar {
+  display: none;
+}
+
+/* 最左端：侧栏开关（Q4=A）。T39 接入专注模式前先作为占位（禁用态），避免"点了没反应"。 */
+.dock-side-toggle {
+  flex: none;
+}
+
+/* 中间：图标化入口（Q3=B）—— 图标 + 常显小字名称（名称是硬要求） */
+.dock-item {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  /* T44：模块项此前高达 74px（图标 22 + 名称 + 塞进来的"关闭"文字按钮 25）⇒ 超出 48px 的 DOCK
+     被裁切，"显示有问题"。重设计后（关闭改徽标）把整项压进栏内，并留出徽标空间。 */
+  max-height: calc(var(--dock-h) - 8px);
+  padding: 2px 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  color: var(--txt-2);
+  cursor: pointer;
+  /* 放大只用 transform ⇒ 不改变布局与高度 */
+  transition: transform var(--duration-fast) var(--ease-standard);
+  transform-origin: bottom center;
+}
+
+.dock-item:hover {
+  transform: scale(1.12);
+}
+
+.dock-item.active {
+  color: var(--txt-1);
+  border-color: var(--acc-line);
+  background: var(--acc-fill);
+}
+
+.dock-item-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--r-sm);
+  display: grid;
+  place-items: center;
+  background: var(--ctrl-bg);
+  border: 1px solid var(--ctrl-line);
+  box-shadow: var(--ctrl-specular);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* 名称：常显、超长截断（title 提供全名） */
+.dock-item-label {
+  max-width: 72px;
+  font-size: 10px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dock-item:hover .dock-item-label {
+  color: var(--txt-1);
+}
+
+
+/* ==========================================================================
+ * T38 补充：DOCK 上的「菜单」控件按钮 —— **所有页面常驻可用**
+ * 用户口径：「不需要回缩的页面，也还是在 DOCK 上补充一个菜单的控件按钮」。
+ *
+ * 机制：
+ *   · 根属性 `data-sidebar='collapsed'` 驱动布局（列宽 + gap 同时变），组件不碰布局；
+ *   · 根属性 `data-native-view='1'`（存在已打开的原生视图）时**关闭过渡** ⇒ 瞬时切换 ⇒
+ *     嵌入页面只 reflow 一次（否则逐帧 reflow，正是 §9.2 要规避的最贵路径）；
+ *   · 无原生视图的页面则**带动画**（侧栏从右上向左下收进任务栏的观感在 T39 完整化）。
+ * ========================================================================== */
+.shell {
+  /* T45 修订 4：列宽与侧栏动效**同长**（520ms），不再"面板比菜单快 200ms" */
+  transition:
+    grid-template-columns var(--duration-layout) var(--ease-decelerate),
+    column-gap var(--duration-layout) var(--ease-decelerate);
+}
+
+[data-native-view='1'] .shell {
+  transition: none; /* 有原生视图：瞬时切换，避免逐帧 reflow */
+}
+
+
+:root[data-sidebar='collapsed'] .side {
+  /* 收起：不占位（T39 会补上"从右上锚点向左下收拢"的完整动画） */
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ==========================================================================
+ * T39/T43 修订：① 专注态侧栏 = **覆盖层**（浮在浮动面板之上，不挤回布局）
+ * 用户口径：「进入专注布局后，菜单栏开启会展开到浮动面板上面，而不是缩回原来的布局」。
+ *
+ * 实现：专注态下 `.side` 脱离网格流（absolute），内容区保持扩展（列宽仍为 0 1fr）；
+ * 开启菜单 = 覆盖层从左侧滑入（spring 缓动）；关闭 = 滑出。**内容区位置始终不变**。
+ * ========================================================================== */
+:root[data-focus='1'] .side {
+  /* T46 修订：**栅格对齐**而不是绝对定位 + 手算坐标。
+     此前用 left/top/bottom/width 计算，实测与普通态差 x+24 / y+24 / w-6 / h-24（永远对不齐）。
+     现在让它留在**自己的栅格单元**里（grid-column: 1），几何与普通态**天然一致**；
+     内容区改为**跨两列铺满**（向左拓展），菜单用 z-index 盖在它上面。 */
+  grid-column: 1;
+  grid-row: 1;
+  z-index: 30; /* 用户规格：专注模式下菜单直接盖在浮动面板之上 */
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  margin: 0;
+  overflow-y: auto;
+  position: relative;
+  /* 展开/收起只做**上下**位移与淡入淡出（用户规格：向下回收、向上展开；不缩放、无过冲） */
+  animation: el-side-rise var(--duration-panel) var(--ease-soft, var(--ease-decelerate));
+}
+
+:root[data-focus='1'][data-sidebar='collapsed'] .side {
+  opacity: 0;
+  pointer-events: none;
+  animation: el-side-drop var(--duration-panel) var(--ease-soft, var(--ease-decelerate)) forwards;
+}
+
+/* 内容区在专注态**跨两列铺满** ⇒ 视觉上"向左拓展"到原侧栏最左边界。
+ *
+ * ⚠️ 这条**必须无条件**（`panel-motion.spec.ts` ① / `focus-mode.spec.ts` ③ 两个守卫钉住）——
+ * 曾尝试改成"仅侧栏收起时铺满"，被守卫拒绝并回滚：铺满是专注态的既定语义。
+ *
+ * ⚠️ 但它与**原生视图**叠加时有一个已知陷阱（2026-10-04 实测，机制已查清）：
+ *   ① 原生 `WebContentsView` **永远画在 DOM 之上**（`layout.ts` 注释原话："DOM 的 z-index 对原生视图无效"）
+ *      ⇒ 专注态下若用户**展开侧栏**，侧栏是 DOM 覆盖层，而模块页视图是原生层
+ *      ⇒ **视图会压在侧栏与顶栏之上**（视觉上"盖住"，点击也归视图）；
+ *   ② 模块页槽位**故意铺满内容区**（`.content-scroll > .module-page-host` 负外边距抵消内边距）
+ *      ⇒ 视图矩形 = 内容区矩形（从 x=0 起）；
+ *   ③ 槽位玻璃是 90% 不透明 ⇒ 底下被压住的侧栏/标题会**透出约 10%** ⇒ 用户看到"标题与「监控」从卡片缝里透出来"。
+ *   ⇒ 正确修法不是动这条规则，而是**在上报矩形时把"专注态下侧栏覆盖的那一条"排除掉**
+ *     （夹取逻辑与 `report-rect.ts` 的既有哲学一致），这是**待办**。 */
+:root[data-focus='1'] .content {
+  grid-column: 1 / -1;
+}
+
+
+:root[data-focus='1']:not([data-sidebar='collapsed']) .side {
+  transform: translate(0, 0) scale(1);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* 专注态下侧栏覆盖层与内容区之间给一道柔和分界（纯描边，不是灰层） */
+:root[data-focus='1'] .side {
+  border-right: 1px solid var(--mat-border);
+}
+
+/* ==========================================================================
+ * ② DOCK：macOS 特性对齐（自动隐藏 + 底边唤出 + 运行指示 + 放大）
+ * 研究依据：Apple 官方 Dock 偏好项包含"自动隐藏与显示 Dock""为打开的 App 显示指示灯""放大"。
+ *
+ * ⚠️ 关键取舍（几何契约）：自动隐藏时**仍然保留 48px 的底部空间**（不做"收回空间"）——
+ * 因为原生视图的内缩值由主进程按固定高度计算，收回空间会让视图与任务栏错位。
+ * 视觉上 Dock 滑出屏幕，该区域显示应用底色。
+ * ========================================================================== */
+:root[data-dock='hidden'] .tool-bar .dock {
+  transform: translateY(120%);
+  pointer-events: none;
+}
+
+.dock {
+  transition: transform var(--duration-normal) var(--ease-dock-reveal);
+}
+
+/* 底边唤出热区：仅在自动隐藏时生效（指针到达窗口底边即唤出） */
+.dock-hotzone {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 8px;
+  z-index: 29;
+  display: none;
+}
+
+:root[data-dock='hidden'] .dock-hotzone {
+  display: block;
+}
+
+/* 运行指示（对齐 macOS"为打开的 App 显示指示灯"）：有打开的工具时图标下方一个小圆点 */
+.dock-item-running {
+  width: 4px;
+  height: 4px;
+  border-radius: var(--r-pill);
+  background: currentColor;
+  margin-top: -1px;
+}
+
+/* 放大：非线性（过冲）缓动；仍然只改 transform ⇒ 高度恒定 */
+.dock-item {
+  transition: transform var(--duration-fast) var(--ease-out-back);
+}
+
+/* ==========================================================================
+ * 直播中控页的尺寸规范（用户反馈："每个功能组件的大小和高度是有问题的"）
+ * 截图实测病灶：卡片内大片空白（标题字号过大 + 段落外边距叠加）、
+ * 输入框仅 25px 高 / 142px 宽（占位符被截断）。
+ * 全部用现有令牌（--sp-* / --fs-* / --r-*），不引入新数值体系。
+ * ========================================================================== */
+.obs-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.obs-page .card {
+  padding: var(--sp-4);
+}
+
+/* 标题收敛：控制台不是落地页，标题不该占主导 */
+.obs-page h1 {
+  margin: 0 0 var(--sp-2);
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+.obs-page h2 {
+  margin: 0 0 var(--sp-2);
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+/* 段落与提示不要撑出空白 */
+.obs-page p {
+  margin: 0 0 var(--sp-2);
+  line-height: 1.5;
+}
+
+.obs-page p:last-child {
+  margin-bottom: 0;
+}
+
+/* 表单行：输入框给足尺寸，窄窗自动换行 */
+.obs-field-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.obs-field-row input {
+  flex: 1 1 260px;
+  min-width: 220px;
+  height: 32px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--ctrl-line);
+  background: var(--ctrl-bg);
+  color: var(--txt-1);
+  font-size: 13px;
+}
+
+.obs-field-row input::placeholder {
+  color: var(--txt-3);
+}
+
+/* 动作行：按钮不拉伸、间距一致 */
+.obs-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+/* 场景 chips */
+.obs-scenes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.obs-scenes .chip {
+  height: 30px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--r-pill);
+  border: 1px solid var(--ctrl-line);
+  background: var(--ctrl-bg);
+  color: var(--txt-2);
+  cursor: pointer;
+}
+
+.obs-scenes .chip.chip-active {
+  color: var(--txt-1);
+  border-color: var(--acc-line);
+  background: var(--acc-fill);
+}
+
+/* DOCK 三分区（用户要求：「菜单和常驻分别放到两侧，否则菜单将无法做到从哪来回哪去」）
+   左端＝菜单（侧栏的"来处/去处"锚点）；中间＝工具图标组（真正居中）；右端＝常驻开关。
+   用户口径：「OBS 未连接」不作为 DOCK 上的项目存在 ⇒ 状态只显示在直播中控页内。 */
+.dock-left,
+.dock-right {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: none;
+}
+
+.dock-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.dock-center::-webkit-scrollbar {
+  display: none;
+}
+
+.dock-right {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex: none;
+}
+
+/* T44：内容区各分区的错峰入场（动效定义在 motion.css；此处只做接线） */
+.content-scroll .card,
+.obs-page .card {
+  animation: el-rise-in var(--duration-normal) var(--ease-spring) backwards;
+}
+
+.content-scroll .card:nth-child(1) { animation-delay: calc(var(--duration-stagger) * 0); }
+.content-scroll .card:nth-child(2) { animation-delay: calc(var(--duration-stagger) * 1); }
+.content-scroll .card:nth-child(3) { animation-delay: calc(var(--duration-stagger) * 2); }
+.content-scroll .card:nth-child(4) { animation-delay: calc(var(--duration-stagger) * 3); }
+.content-scroll .card:nth-child(5) { animation-delay: calc(var(--duration-stagger) * 4); }
+
+/* DOCK 关闭徽标样式（动效在 motion.css） */
+.dock-close {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+.dock-close-btn {
+  width: 18px;
+  height: 18px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--ctrl-line);
+  background: var(--card-bg);
+  color: var(--txt-2);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.dock-close-btn:hover {
+  color: var(--txt-1);
+  border-color: var(--acc-line);
+}
+
+.dock-item.tool-chip {
+  position: relative;
+}
+
+/* ==========================================================================
+ * T45 修订 2：**带折射的玻璃层不做 transform 动画**
+ * 用户实测反馈：「菜单收起时没有动画且会卡一下」「收起和展开时玻璃透的底图闪一下」
+ * 根因（源码取证）：`.side::before` 用 `background-attachment: fixed` + `filter: var(--mat-refract)`，
+ *   位移滤镜的坐标空间是**元素自身** ⇒ 一旦 transform 元素，折射结果就随元素"游动"（底图闪）；
+ *   同时整块 backdrop-filter 每帧重绘 ⇒ 卡顿。
+ * 处置：玻璃层（.side）只改**列宽与透明度**（两者都不移动坐标空间）；"从 DOCK 菜单按钮升起 /
+ *   飞向按钮"的位移动效下移到内层 `.side-inner`（该层没有玻璃与折射）⇒ 观感保住、底图不游。
+ * ========================================================================== */
+.side-inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  min-height: 100%;
+  will-change: transform;
+}
+
+/* 内层承接收放位移（无玻璃 ⇒ 安全） */
+:root:not([data-sidebar='collapsed']) .side-inner {
+  transform-origin: bottom left;
+  animation: el-side-rise var(--duration-panel) var(--ease-emphasized);
+}
+
+:root[data-sidebar='collapsed'] .side-inner {
+  transform-origin: top right;
+  animation: el-side-drop var(--duration-panel) var(--ease-emphasized) forwards;
+}
+
+/* 玻璃层本体的收放：只做列宽过渡（.shell 的 transition）+ 透明度，且**更快**以免拖沓 */
+.side {
+  transition:
+    opacity var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard);
+}
+
+/* T45 修订 3：**收起必须先"看得见地播完动效"，再收布局/淡出** ——
+   此前玻璃层 120ms 就淡没、列宽同期收缩 ⇒ 内层的下落动画在不可见的容器里播 ⇒
+   用户观感是"收起没有过渡动画"。现在给收起路径加**延时**（展开路径不加，保持即时响应）。 */
+:root[data-sidebar='collapsed'] .side {
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity var(--duration-panel) var(--ease-emphasized) var(--duration-collapse-delay),
+    background-color var(--duration-fast) var(--ease-standard);
+}
+
+:root[data-sidebar='collapsed'] .shell {
+  /* 收起：等内层飞向菜单按钮播完一半再收列宽（用令牌，与上面的延时同源） */
+  transition-delay: var(--duration-collapse-delay);
+}
+
+:root:not([data-sidebar='collapsed']) .shell {
+  transition-delay: 0ms;
+}
+
+/* T42：监看区（16:9 预览框；只用现有令牌） */
+.obs-monitor {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  max-height: 46vh;
+  border-radius: var(--r-md);
+  border: 1px solid var(--ctrl-line);
+  background: var(--ctrl-bg);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+
+.obs-monitor-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: transparent;
+}
+
+.obs-monitor-placeholder {
+  position: absolute;
+  margin: 0;
+  color: var(--txt-3);
+  font-size: 13px;
+}
+
+/* ==========================================================================
+ * T43 锁定模式（用户选择 Q2=A：① 不自动隐藏 ② 不参与回缩动画 ③ 位置固定）
+ * 机械表达：锁定期间**关闭该层动画与过渡**（含侧栏收放与面板列宽），位置随之固定。
+ * ========================================================================== */
+:root[data-layout-locked='1'] .side,
+:root[data-layout-locked='1'] .side-inner {
+  animation: none !important;
+  transition: none !important;
+}
+
+:root[data-layout-locked='1'] .shell {
+  transition: none !important;
+}
+
+/* ==========================================================================
+ * T46 修复：折射层在**布局变化期间淡出**（用户反馈"玻璃折射的底图还是抽搐"）。
+ * 真因：`filter: var(--mat-refract)` 是按元素尺寸烘焙的位移滤镜 ⇒ 元素尺寸一变就要重新烘焙，
+ * 表现为"抽搐/闪一下"。淡出（而不是瞬间隐藏）把重烘焙藏进过渡里。
+ * ========================================================================== */
+.card::before,
+.content::before {
+  transition: opacity var(--duration-fast) var(--ease-soft);
+}
+
+/* T48（最小修复）：只淡**真正会移动的那一层**（侧栏）——
+   探测器实测：折射抽搐只发生在 `.side`（元素移动 ⇒ 按元素坐标系烘焙的滤镜跟着动）；
+   `.card` / `.content` 只改尺寸、不移动，淡它们会误伤用户可见的底图
+   （实测 `::before` opacity 被压到 0 并持续 640ms ⇒ "底图消失一会再出现"）。
+   ⚠️ 同时**保留内容区入场动效**：入场期间的 transform 会让槽位上报自动跳过，
+   删掉它会导致上报发生在入场中间态（实测把视图放到 x=0，`module-view-bounds` 3/3 失败）。 */
+:root[data-layout-anim='1'] .side::before {
+  opacity: 0;
+}
+
+.side::before {
+  transition: opacity var(--duration-fast) var(--ease-soft);
+}
+
+/* 产品图标（用户要求：主界面与启动页的产品名旁） */
+.brand-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-sm);
+  flex: none;
+}
+
+.title-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-sm);
+  margin-bottom: var(--sp-2);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+/* T53：**浮动面板**（侧栏 `.side`、模块下拉浮层 `.nav-dropdown`）隐藏滚动条**本体**。
+   用户要求「删除所有浮动面板左侧上下滑动的导航条」⇒ 按字面：**保留可滑动**（overflow 不动），
+   只让那条竖条不再可见（此前 L1097 起的自定义 `::-webkit-scrollbar` 规则会把它画出来）。
+   页面级区域 `.content` / `.log-view` **不属浮动面板，保持原样**。 */
+/* T53 → T54：**所有滚动容器一律不显示滚动条**（用户追加要求「把滚动条删去，不显示它」）。
+   注意：隐藏的是**滚动条本体**，**不动 `overflow-y: auto`** ⇒ 内容依旧可滚动（滚轮/触控板/键盘）。
+   两条写法都要：`scrollbar-width`（标准）与 `::-webkit-scrollbar`（Chromium 仍会画出来）。 */
+/* ⚠️ 选择器以**实测的滚动容器**（`overflow-y: auto` 的宿主）为准：
+   `.side`（L710；专注态 L2293）、**`.content-scroll`**（L877，内容区真正的滚动容器）、
+   `.whatsnew-body`（L1898，"本次更新"弹窗正文）、`.nav-dropdown`（模块下拉浮层）。
+   T54 曾误写为 `.content`（它不是滚动容器）⇒ T55 修正。 */
+.side,
+.nav-dropdown,
+.content-scroll,
+.whatsnew-body {
+  scrollbar-width: none;
+}
+
+.side::-webkit-scrollbar,
+.nav-dropdown::-webkit-scrollbar,
+.content-scroll::-webkit-scrollbar,
+.whatsnew-body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+/* T43 增量 2：内置迷你中控悬浮窗（独立置顶透明窗口；`isOverlayWindow` 标记） */
+html.mini,
+html.mini body,
+body.mini-body-root {
+  background: transparent;
+}
+
+.mini-body {
+  -webkit-app-region: drag; /* 与模块悬浮窗同一套拖动原语 */
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: var(--sp-2);
+  border-radius: var(--r-lg);
+  /* 与宿主 `.card` 同配方：用户在 T60 已拍板内容层用玻璃材质 */
+  background: var(--card-bg);
+  backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+  -webkit-backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+  border: 1px solid var(--mat-border);
+  box-shadow: var(--mat-edge-light), var(--mat-shadow-1), var(--mat-shadow-2);
+  color: var(--txt-1);
+  font: 13px/1.4 var(--font-ui, sans-serif);
+}
+
+.mini-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.mini-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-pill);
+  background: var(--acc);
+  flex: none;
+}
+
+.mini-title {
+  flex: 1;
+  font-weight: 600;
+}
+
+.mini-x {
+  -webkit-app-region: no-drag;
+  border: 0;
+  background: transparent;
+  color: var(--txt-2);
+  cursor: pointer;
+}
+
+.mini-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+  -webkit-app-region: no-drag;
+}
+
+.mini-hint {
+  font-size: 11px;
+  color: var(--txt-3, var(--txt-2));
+}
+
+/* P3/T66：模块协议 chip（未声明用警示色；核心不替作者授权） */
+.chip-license {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.chip-warn {
+  background: var(--bad-soft, transparent);
+  border-color: var(--bad-line);
+  color: var(--bad);
+}
+
+/* 首次启动欢迎卡片（替代 EULA 弹窗）。
+   遵守：不使用全屏灰纱（守则 24）、不使用 backdrop-filter（守则 36）、
+   颜色一律走令牌、时长一律走 --duration-* 令牌、px 仅用间距白名单值。 */
+.welcome-layer {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 60;
+  pointer-events: none;
+}
+
+.welcome-card {
+  pointer-events: auto;
+  width: min(100% - 48px, 32rem);
+  padding: 24px;
+  border-radius: var(--r-lg);
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  box-shadow: var(--ctrl-shadow-hover);
+  animation: welcome-in var(--duration-enter) var(--ease-accelerate) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .welcome-card { animation: none; }
+}
+
+@keyframes welcome-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+.welcome-head h2 { margin: 0 0 12px; font-size: 1rem; font-weight: 600; }
+.welcome-body { display: grid; gap: 12px; }
+.welcome-lead { margin: 0; opacity: 0.92; }
+.welcome-list { margin: 0; padding-left: 16px; display: grid; gap: 8px; opacity: 0.92; }
+.welcome-list b { font-weight: 600; }
+.welcome-foot { margin: 4px 0 0; opacity: 0.72; font-size: 0.8125rem; }
+.welcome-actions { display: flex; justify-content: flex-end; align-items: center; gap: 12px; margin-top: 16px; }
+.welcome-version { margin-right: auto; opacity: 0.5; font-size: 0.8125rem; }
+.welcome-primary {
+  padding: 8px 20px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--acc-line);
+  background: var(--acc-soft);
+  color: inherit;
+  cursor: pointer;
+}
+.welcome-link {
+  border: 0;
+  background: none;
+  color: inherit;
+  opacity: 0.75;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.welcome-link:hover { opacity: 1; }
+
+/* 方案 C：OBS 要求密码时**就地**出现的输入（只在需要时渲染，不常驻直播操作页）。 */
+.obs-password-inline {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: var(--r-md);
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 8px;
+}
+.obs-password-row { display: flex; gap: 8px; align-items: center; }
+.obs-password-input {
+  flex: 1;
+  padding: 8px 12px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--ctrl-line);
+  background: var(--ctrl-bg);
+  color: inherit;
+}

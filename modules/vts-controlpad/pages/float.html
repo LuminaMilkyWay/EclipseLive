@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="eclipse-ui-context" content="canvas">
+<title>VTS ControlPad · 悬浮窗</title>
+<style>
+  /* 悬浮窗属「输出画布」（MODULE_UI_CONTRACT §4）：显式声明 canvas 上下文，自绘样式
+     —— 它是浮在桌面上的独立窗口，不在宿主槽位内，故不消费槽位设计令牌。
+     拖动由 -webkit-app-region: drag 提供（位置记忆依赖它），交互元素显式 no-drag。 */
+  :root { --pad-op: 0.8; --pad-cols: 3; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; }
+  body {
+    font: 13px/1.4 "Rajdhani", "Noto Sans SC", "Microsoft YaHei UI", sans-serif;
+    color: #eaeaf0;
+    background: rgba(16, 16, 22, var(--pad-op));
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 10px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    -webkit-app-region: drag;
+    user-select: none;
+  }
+  .bar { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #9a9aa8; flex: none; }
+  .bar .sp { flex: 1; }
+  .bar .badge {
+    -webkit-app-region: no-drag;
+    padding: 1px 6px; border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.22); color: #cfcfe0;
+  }
+  .bar .badge.on { border-color: rgba(120, 200, 255, 0.6); color: #9fd8ff; }
+  .grid {
+    flex: 1; min-height: 0; overflow-y: auto; align-content: start;
+    display: grid; gap: 6px;
+    grid-template-columns: repeat(var(--pad-cols), minmax(0, 1fr));
+  }
+  .hk {
+    -webkit-app-region: no-drag;
+    display: flex; flex-direction: column; gap: 2px; align-items: flex-start;
+    min-width: 0; padding: 6px 8px; text-align: left; cursor: pointer;
+    border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 8px;
+    background: rgba(255, 255, 255, 0.06); color: inherit; font: inherit;
+  }
+  .hk:hover { border-color: rgba(120, 200, 255, 0.7); }
+  .hk:active { transform: scale(0.97); }
+  .hk .nm { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hk .st { font-size: 10px; color: #9a9aa8; }
+  .hk[data-kind="toggle"][data-state="on"] {
+    border-color: rgba(120, 200, 255, 0.75);
+    background: rgba(120, 200, 255, 0.18);
+  }
+  .hk[data-kind="toggle"][data-state="on"] .st { color: #9fd8ff; }
+  .hk.hit { border-color: rgba(150, 235, 170, 0.8); }
+  .hk.hint { border-color: rgba(255, 210, 120, 0.8); }
+  .hk.bad { border-color: rgba(255, 130, 130, 0.85); }
+  .empty {
+    flex: 1; display: flex; flex-direction: column; gap: 4px;
+    align-items: center; justify-content: center; text-align: center;
+    font-size: 11px; color: #9a9aa8; padding: 6px;
+  }
+  .empty .big { color: #eaeaf0; font-size: 12px; }
+  .note { flex: none; font-size: 10px; color: #9a9aa8; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .note.bad { color: #ff9a9a; }
+</style>
+</head>
+<body>
+<div class="bar">
+  <span id="title">VTS ControlPad</span>
+  <span class="sp"></span>
+  <span class="badge" id="through" hidden>穿透中</span>
+</div>
+<div class="grid" id="grid" hidden></div>
+<div class="empty" id="empty">
+  <span class="big" id="empty-title">未连接</span>
+  <span id="empty-hint">启动 VTube Studio 后自动恢复</span>
+</div>
+<p class="note" id="note"></p>
+
+<script>
+(() => {
+  'use strict'
+  const CHANNEL = 'vts-controlpad'
+  const token = new URLSearchParams(location.search).get('token') ?? ''
+  const wsUrl =
+    (location.protocol === 'https:' ? 'wss://' : 'ws://') +
+    location.host + '/ws?token=' + encodeURIComponent(token)
+  const stateUrl = '/vts-controlpad/state' + location.search
+
+  const $ = (id) => document.getElementById(id)
+  let signature = ''
+  let flashTimer = null
+
+  function resultClass(result) {
+    if (result === 'ok') return 'hit'
+    if (result === 'cooldown' || result === 'queue-full') return 'hint'
+    return 'bad'
+  }
+
+  function buildGrid(hks, cols) {
+    const grid = $('grid')
+    grid.style.setProperty('--pad-cols', String(cols))
+    grid.textContent = ''
+    for (const h of hks) {
+      const btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'hk'
+      btn.dataset.id = String(h.id)
+      btn.dataset.kind = h.kind === 'toggle' ? 'toggle' : 'trigger'
+      btn.dataset.state = 'unknown'
+      btn.title = h.description || h.name
+      const nm = document.createElement('span')
+      nm.className = 'nm'
+      nm.textContent = String(h.name)
+      btn.append(nm)
+      if (h.kind === 'toggle') {
+        const st = document.createElement('span')
+        st.className = 'st'
+        st.textContent = '未知'
+        btn.append(st)
+      }
+      grid.append(btn)
+    }
+  }
+
+  function applyStates(states) {
+    const map = states && typeof states === 'object' ? states : {}
+    for (const btn of document.querySelectorAll('.hk[data-kind="toggle"]')) {
+      const v = map[btn.dataset.id]
+      const state = v === 'on' ? 'on' : v === 'off' ? 'off' : 'unknown'
+      btn.dataset.state = state
+      const st = btn.querySelector('.st')
+      if (st) st.textContent = state === 'on' ? '开' : state === 'off' ? '关' : '未知'
+    }
+  }
+
+  function applyResult(r) {
+    const note = $('note')
+    if (flashTimer) {
+      clearTimeout(flashTimer)
+      flashTimer = null
+    }
+    for (const btn of document.querySelectorAll('.hk')) btn.classList.remove('hit', 'hint', 'bad')
+    if (!r || typeof r !== 'object') {
+      note.className = 'note'
+      note.textContent = ''
+      return
+    }
+    const btn = document.querySelector('.hk[data-id="' + String(r.id).replace(/"/g, '') + '"]')
+    const cls = resultClass(r.result)
+    if (btn) {
+      btn.classList.add(cls)
+      flashTimer = setTimeout(() => btn.classList.remove(cls), 900)
+    }
+    note.className = r.result === 'ok' ? 'note' : 'note bad'
+    note.textContent = r.result === 'ok' ? '已触发' : String(r.message || '') || '触发失败'
+  }
+
+  function render(s) {
+    const f = s.float && typeof s.float === 'object' ? s.float : {}
+    const hks = Array.isArray(s.floatHotkeys) ? s.floatHotkeys : []
+
+    $('title').textContent =
+      s.status === 'authenticated' && s.model && s.model.name ? s.model.name : 'VTS ControlPad'
+    // 穿透态必须显眼：穿透时点击不生效，用户需要知道原因与切换方式
+    const badge = $('through')
+    badge.hidden = !f.clickThrough
+    badge.className = f.clickThrough ? 'badge on' : 'badge'
+    document.documentElement.style.setProperty('--pad-op', String((Number(f.bgOpacity) || 80) / 100))
+
+    const grid = $('grid')
+    const empty = $('empty')
+    if (hks.length === 0) {
+      grid.hidden = true
+      grid.textContent = ''
+      signature = ''
+      empty.hidden = false
+      if (s.status !== 'authenticated') {
+        $('empty-title').textContent = '未连接'
+        $('empty-hint').textContent = '启动 VTube Studio 后自动恢复'
+      } else {
+        $('empty-title').textContent = '未选择热键'
+        $('empty-hint').textContent = '在 VTS ControlPad 控制页勾选要上悬浮窗的热键'
+      }
+      $('note').textContent = f.error ? String(f.error) : ''
+      return
+    }
+
+    empty.hidden = true
+    grid.hidden = false
+    const cols = Math.min(4, Math.max(2, Number(f.columns) || 3))
+    const sig = hks.map((h) => h.id + ':' + h.kind).join('|') + '|' + cols
+    if (sig !== signature) {
+      signature = sig
+      buildGrid(hks, cols)
+    }
+    applyStates(s.states)
+    applyResult(s.lastResult)
+  }
+
+  function send(payload) {
+    const ws = window.__padWs
+    if (ws && ws.readyState === 1) ws.send(JSON.stringify({ channel: CHANNEL, payload }))
+  }
+
+  $('grid').addEventListener('click', (ev) => {
+    const btn = ev.target && ev.target.closest ? ev.target.closest('.hk') : null
+    if (!btn) return
+    send({ type: 'trigger', id: btn.dataset.id })
+  })
+
+  function load() {
+    return fetch(stateUrl)
+      .then((r) => r.json())
+      .then(render)
+      .catch(() => {})
+  }
+
+  const ws = new WebSocket(wsUrl)
+  window.__padWs = ws
+  ws.onmessage = (ev) => {
+    let msg
+    try {
+      msg = JSON.parse(ev.data)
+    } catch {
+      return
+    }
+    if (!msg || msg.channel !== CHANNEL) return
+    const p = msg.payload
+    if (p && typeof p === 'object' && p.type === 'state') render(p)
+  }
+  ws.onclose = () => {
+    setTimeout(() => location.reload(), 1000)
+  }
+
+  void load()
+})()
+</script>
+</body>
+</html>

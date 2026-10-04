@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>PrologueType Live</title>
+<style>
+  /* 模块页 UI 契约（MODULE_UI_CONTRACT.md）：本页是宿主 WebContentsView 内嵌的
+     应用内功能页（非画布豁免），样式一律消费宿主注入的 :root 设计令牌
+     （--r-* / --sp-* / --txt-* / --bg-* / --mat-* …），零硬编码颜色/尺寸，
+     不自建主题令牌、不自绘画布底（材质底由宿主槽位 .module-page-host 提供）。 */
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100vh; }
+  body {
+    font: 14px/1.5 "Rajdhani", "Noto Sans SC", "Source Han Sans SC", "Microsoft YaHei UI", sans-serif;
+    background: transparent; /* 区域圆角/材质底跟随宿主槽位，页面自身不绘画布 */
+    color: var(--txt-1); padding: var(--sp-5);
+    height: 100vh; overflow-y: auto; /* 不越区滚动：滚动发生在页面自身盒内（= 槽位矩形） */
+  }
+  h1 { font-size: 18px; margin: 0 0 var(--sp-1); }
+  .sub { color: var(--txt-2); font-size: 12px; margin: 0 0 var(--sp-4); }
+  /* 分组卡片 = **标准材质**（T36 层级纪律：内容层不用液态玻璃）。
+     配方：`--std-bg`（半实色面）+ `--std-border` 描边 + `--std-shadow-*` 层级阴影 + `--r-lg` 圆角。
+     ⚠️ 三条禁令：① 不得整面刷 `--mat-veil`（3 档下是 24% 灰面，会糊出灰色底图）；
+     ② 不得用 `backdrop-filter`（内容层不该常驻模糊）；③ 不得自造圆角/颜色。 */
+  section {
+    /* 用户 2026-10-02 拍板 A：内容层与宿主 `.card` **同配方**（玻璃材质），
+     推翻 T36"内容层不用玻璃"的约定 —— 否则档 4 下本页明显比周围"更平"（用户实测反馈）。 */
+  background: var(--card-bg);
+  backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+  -webkit-backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+    border: 1px solid var(--mat-border);
+    border-radius: var(--r-lg);
+    box-shadow: var(--mat-edge-light), var(--mat-edge-thick), var(--mat-glow), var(--mat-shadow-1), var(--mat-shadow-2);
+    padding: var(--sp-4); margin-bottom: var(--sp-4);
+  }
+  h2 { font-size: 13px; color: var(--acc); margin: 0 0 var(--sp-2); letter-spacing: .5px; }
+  .row { display: flex; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-2); flex-wrap: wrap; }
+  label { color: var(--txt-2); font-size: 12px; width: 92px; flex: none; }
+  input[type="text"], input[type="number"], select {
+    background: var(--bg-card-2); color: var(--txt-1); border: 1px solid var(--line);
+    border-radius: var(--r-md); padding: var(--sp-1) var(--sp-2); font: inherit; min-width: 120px;
+  }
+  input[type="color"] { width: 44px; height: 28px; padding: 0; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--bg-card-2); }
+  input[type="range"] { flex: 1; min-width: 100px; accent-color: var(--acc); }
+  .val { font-size: 12px; color: var(--txt-2); min-width: 34px; text-align: right; }
+  textarea {
+    width: 100%; height: 72px; resize: vertical; background: var(--bg-card-2); color: var(--txt-1);
+    border: 1px solid var(--line); border-radius: var(--r-md); padding: var(--sp-2); font: inherit;
+  }
+  button {
+    padding: var(--sp-2) var(--sp-3); border: 1px solid var(--line-strong); border-radius: var(--r-sm);
+    background: var(--bg-card-2); color: var(--txt-1); cursor: pointer; font: inherit; font-size: 12px;
+  }
+  button:hover { border-color: var(--acc); }
+  button.primary { background: var(--acc-fill); border-color: var(--acc-line); color: var(--txt-1); }
+  button.warn { border-color: var(--bad-line); color: var(--bad); }
+  button.active { outline: 2px solid var(--acc); outline-offset: 1px; }
+  .actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-top: var(--sp-2); }
+  .toast {
+    position: fixed; right: var(--sp-4); bottom: var(--sp-4);
+    background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--ok);
+    border: 1px solid color-mix(in srgb, var(--ok) 32%, transparent);
+    border-radius: var(--r-md); padding: var(--sp-2) var(--sp-3); opacity: 0;
+    transition: opacity .25s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+  .history { margin-top: var(--sp-2); }
+  .history div { font-size: 12px; color: var(--txt-2); padding: var(--sp-1) 0; border-bottom: 1px dashed var(--line); }
+  .swatches { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+  .swatches button { min-width: 64px; }
+  .note { font-size: 12px; color: var(--txt-2); margin: var(--sp-2) 0 0; }
+  .status { font-size: 12px; color: var(--txt-2); margin-bottom: var(--sp-2); }
+</style>
+</head>
+<body>
+<h1>PrologueType Live</h1>
+<p class="sub">无声系主播打字机 · 控制页</p>
+
+<section>
+  <h2>OBS 浏览器源</h2>
+  <div class="row">
+    <button id="copy-url" class="primary">获取URL</button>
+    <span class="note">点击复制 OBS 浏览器源地址到剪贴板（不在此处显示 URL 明文）</span>
+  </div>
+  <div class="row status" id="queue-status">队列空闲</div>
+</section>
+
+<section>
+  <h2>输入区</h2>
+  <textarea id="input" placeholder="输入文字…（Enter 发送，Shift+Enter 换行）"></textarea>
+  <div class="actions">
+    <button id="btn-send" class="primary">发送</button>
+    <button id="btn-undo">撤销上一条</button>
+    <button id="btn-pause">暂停队列</button>
+    <button id="btn-clear">清空</button>
+  </div>
+  <div class="history" id="history"></div>
+</section>
+
+<section>
+  <h2>OBS 文字</h2>
+  <div class="row"><label>文字颜色</label><input type="color" data-group="obs" data-key="textColor"></div>
+  <div class="row">
+    <label>字体</label>
+    <input type="text" list="pt-fonts" data-group="obs" data-key="fontFamily" placeholder="选择或手输字体名">
+    <datalist id="pt-fonts"></datalist>
+  </div>
+  <div class="row"><label>字号</label><input type="number" min="12" max="96" data-group="obs" data-key="fontSize"><span class="note">px</span></div>
+  <div class="row"><label>打字速度</label><input type="range" min="10" max="500" step="10" data-group="obs" data-key="typingSpeed"><span class="val" id="v-typingSpeed"></span><span class="note">ms/字</span></div>
+  <div class="row"><label>滚动速度</label><input type="range" min="50" max="2000" step="50" data-group="obs" data-key="scrollSpeed"><span class="val" id="v-scrollSpeed"></span><span class="note">ms</span></div>
+  <div class="row"><label>开头符号</label><input type="text" data-group="obs" data-key="prefixSymbol" placeholder="可空，可多字符"></div>
+  <div class="row"><label>结尾符号</label><input type="text" data-group="obs" data-key="suffixSymbol" placeholder="可空，可多字符"></div>
+</section>
+
+<section>
+  <h2>OBS 显示样式（六组合）</h2>
+  <div class="row swatches" id="style-switches">
+    <button data-style="none">无底图</button>
+    <button data-style="none-border">无底图+框</button>
+    <button data-style="blur">高斯模糊</button>
+    <button data-style="blur-border">模糊+框</button>
+    <button data-style="solid">纯色</button>
+    <button data-style="solid-border">纯色+框</button>
+  </div>
+  <div class="row"><label>背景色</label><input type="color" data-group="obs" data-key="bgColor"></div>
+  <div class="row"><label>外框色</label><input type="color" data-group="obs" data-key="borderColor"></div>
+  <div class="row"><label>外框宽度</label><input type="range" min="0" max="24" step="1" data-group="obs" data-key="borderWidth"><span class="val" id="v-borderWidth"></span><span class="note">px</span></div>
+  <div class="row"><label>模糊强度</label><input type="range" min="0" max="64" step="2" data-group="obs" data-key="blurStrength"><span class="val" id="v-blurStrength"></span><span class="note">px</span></div>
+  <div class="row"><label>透明度</label><input type="range" min="0" max="100" step="5" data-group="obs" data-key="opacity"><span class="val" id="v-opacity"></span><span class="note">%</span></div>
+</section>
+
+<section>
+  <h2>悬浮输入窗</h2>
+  <div class="row"><label>启用</label><input type="checkbox" data-key="f-enabled" data-cfgkey="enabled"><span class="note">置顶 / 透明 / 不抢焦点 / 不进任务栏</span></div>
+  <div class="row">
+    <label>显示屏幕</label>
+    <select data-key="f-screen" data-cfgkey="screen"><option value="">主屏</option></select>
+  </div>
+  <div class="row"><label>背景透明度</label><input type="range" min="0" max="100" step="5" data-key="f-bgOpacity" data-cfgkey="bgOpacity"><span class="val" id="v-f-bgOpacity"></span><span class="note">%</span></div>
+  <div class="row"><label>文字透明度</label><input type="range" min="30" max="100" step="5" data-key="f-textOpacity" data-cfgkey="textOpacity"><span class="val" id="v-f-textOpacity"></span><span class="note">% · 保底可读</span></div>
+  <div class="row"><label>鼠标穿透</label><input type="checkbox" data-key="f-clickThrough" data-cfgkey="clickThrough"></div>
+  <p class="note">穿透开启后悬浮窗与页面输入框无法点击（预期行为）。恢复入口：模块快捷键 / 托盘「悬浮窗：关闭鼠标穿透」/ 权限撤销。</p>
+  <div class="row"><label>吸附边缘</label><input type="checkbox" data-key="f-snapEdges" data-cfgkey="snapEdges"></div>
+  <div class="row"><label>记住位置</label><input type="checkbox" data-key="f-rememberPosition" data-cfgkey="rememberPosition"></div>
+  <div class="row"><label>显示历史</label><input type="checkbox" data-key="f-showHistory" data-cfgkey="showHistory"></div>
+  <div class="row"><label>背景色</label><input type="color" data-key="f-bgColor" data-cfgkey="bgColor"></div>
+  <div class="row"><label>文字色</label><input type="color" data-key="f-textColor" data-cfgkey="textColor"></div>
+  <div class="row"><label>外框色</label><input type="color" data-key="f-borderColor" data-cfgkey="borderColor"></div>
+  <div class="row"><label>模糊强度</label><input type="range" min="0" max="64" step="2" data-key="f-blurStrength" data-cfgkey="blurStrength"><span class="val" id="v-f-blurStrength"></span><span class="note">px</span></div>
+  <div class="row">
+    <label>字体</label>
+    <input type="text" list="pt-fonts" data-key="f-fontFamily" data-cfgkey="fontFamily" placeholder="选择或手输字体名">
+  </div>
+  <div class="row"><label>字号</label><input type="number" min="12" max="96" data-key="f-fontSize" data-cfgkey="fontSize"><span class="note">px</span></div>
+  <div class="row"><label>穿透快捷键</label><input type="text" data-key="f-toggleThroughHotkey" data-cfgkey="toggleThroughHotkey" placeholder="如 CommandOrControl+Shift+T，留空关闭"></div>
+  <div class="row"><label>发送快捷键</label><input type="text" data-key="f-sendHotkey" data-cfgkey="sendHotkey" placeholder="如 CommandOrControl+Shift+S，留空关闭"></div>
+  <div id="float-errors" class="note" style="color:var(--bad)"></div>
+  <p class="note">已知约束：独占全屏游戏下悬浮窗不保证可见（无边框/窗口化全屏可用）。</p>
+</section>
+
+<div class="toast" id="toast">已复制</div>
+
+<script>
+(() => {
+  'use strict'
+  const CHANNEL = 'prologue-live'
+  const token = new URLSearchParams(location.search).get('token') ?? ''
+  const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws?token=' + encodeURIComponent(token)
+  const stateUrl = '/prologue-live/state' + location.search
+
+  const $ = (id) => document.getElementById(id)
+  let cfg = null
+  let paused = false
+
+  /* ---------- 工具 ---------- */
+  function toast(text) {
+    const t = $('toast')
+    t.textContent = text
+    t.classList.add('show')
+    setTimeout(() => t.classList.remove('show'), 1600)
+  }
+  function up(type, payload) {
+    const ws = window.__ptWs
+    if (ws && ws.readyState === 1) ws.send(JSON.stringify({ channel: CHANNEL, payload: Object.assign({ type }, payload) }))
+  }
+
+  /* ---------- 表单 <-> 配置 ---------- */
+  function setField(key, value) {
+    const el = document.querySelector(`[data-key="${key}"]`)
+    if (!el) return
+    if (el.type === 'checkbox') el.checked = !!value
+    else if (el.type === 'range' || el.type === 'number') el.value = String(value)
+    else if (el.type === 'color') el.value = value
+    else el.value = value
+    const val = $('v-' + key)
+    if (val) val.textContent = String(value)
+  }
+  function applyConfig(c) {
+    cfg = c
+    for (const key of Object.keys(c)) {
+      if (key !== 'float') setField(key, c[key])
+    }
+    for (const key of Object.keys(c.float)) setField('f-' + key, c.float[key])
+    for (const btn of document.querySelectorAll('#style-switches button')) {
+      btn.classList.toggle('active', btn.dataset.style === c.styleType)
+    }
+  }
+
+  /* 变更防抖后上行（实时生效，避免拖动范围条刷屏） */
+  const debounce = {}
+  function bindChange() {
+    document.querySelectorAll('[data-key]').forEach((el) => {
+      const group = el.dataset.group || 'float'
+      const key = el.dataset.cfgkey || el.dataset.key
+      const fire = () => {
+        let value
+        if (el.type === 'checkbox') value = el.checked
+        else if (el.type === 'number' || el.type === 'range') value = Number(el.value)
+        else if (el.type === 'color') value = el.value
+        else value = el.value
+        up('config', { group, changes: { [key]: value } })
+      }
+      const kind = el.type === 'range' ? 'input' : 'change'
+      el.addEventListener(kind, () => {
+        if (el.type === 'range') {
+          const v = $('v-' + el.dataset.key)
+          if (v) v.textContent = el.value
+          clearTimeout(debounce[key])
+          debounce[key] = setTimeout(fire, 150)
+        } else {
+          fire()
+        }
+      })
+    })
+  }
+
+  /* ---------- 输入区 ---------- */
+  function sendNow() {
+    const text = $('input').value
+    if (!text.trim()) return
+    up('send', { text })
+    $('input').value = ''
+  }
+  function renderHistory(list) {
+    const h = $('history')
+    h.innerHTML = ''
+    for (const t of list) {
+      const d = document.createElement('div')
+      d.textContent = t
+      d.title = t
+      h.appendChild(d)
+    }
+  }
+  function renderStatus() {
+    $('queue-status').textContent = paused ? '队列已暂停' : '队列空闲'
+    $('btn-pause').textContent = paused ? '继续队列' : '暂停队列'
+  }
+  function renderFloatErrors(errs) {
+    const el = $('float-errors')
+    if (errs && errs.length > 0) {
+      el.textContent = '悬浮窗提示：' + errs.join('；')
+    } else {
+      el.textContent = ''
+    }
+  }
+
+  /* ---------- 事件 ---------- */
+  $('input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendNow() }
+  })
+  $('btn-send').addEventListener('click', sendNow)
+  $('btn-undo').addEventListener('click', () => up('action', { op: 'undo' }))
+  $('btn-pause').addEventListener('click', () => up('action', { op: paused ? 'resume' : 'pause' }))
+  $('btn-clear').addEventListener('click', () => up('action', { op: 'clear' }))
+  $('copy-url').addEventListener('click', async () => {
+    // 与 getBrowserSourceUrl 同源同 token（本页自身 origin + /obs 路径）
+    const obsUrl = location.origin + '/prologue-live/obs' + location.search
+    try {
+      await navigator.clipboard.writeText(obsUrl)
+      toast('已复制')
+    } catch {
+      toast('复制失败：剪贴板不可用')
+    }
+  })
+  document.querySelectorAll('#style-switches button').forEach((btn) => {
+    btn.addEventListener('click', () => up('config', { group: 'obs', changes: { styleType: btn.dataset.style } }))
+  })
+
+  /* ---------- WS ---------- */
+  const ws = new WebSocket(wsUrl)
+  window.__ptWs = ws
+  ws.onmessage = (ev) => {
+    let msg
+    try { msg = JSON.parse(ev.data) } catch { return }
+    if (!msg || msg.channel !== CHANNEL) return
+    const p = msg.payload
+    if (!p || typeof p !== 'object') return
+    if (p.type === 'state' && p.config) {
+      applyConfig(p.config)
+      renderFloatErrors(p.floatErrors)
+    }
+    else if (p.type === 'history' && Array.isArray(p.history)) renderHistory(p.history)
+    else if (p.type === 'queue') { paused = !!p.paused; renderStatus() }
+  }
+  ws.onclose = () => { setTimeout(() => location.reload(), 1000) }
+
+  /* ---------- 初始加载 ---------- */
+  fetch(stateUrl).then((r) => r.json()).then((s) => {
+    if (s.config) applyConfig(s.config)
+    if (Array.isArray(s.fonts)) {
+      $('pt-fonts').innerHTML = s.fonts.map((f) => `<option value="${f.replace(/"/g, '')}"></option>`).join('')
+    }
+    if (Array.isArray(s.screens)) {
+      const sel = document.querySelector('[data-key="f-screen"]')
+      const extra = s.screens.map((sc) => {
+        const o = document.createElement('option')
+        o.value = sc.id
+        o.textContent = sc.primary ? `主屏${sc.id ? ' (' + sc.id + ')' : ''}` : `屏幕 ${sc.id}`
+        return o
+      })
+      for (const o of extra) sel.appendChild(o)
+    }
+    if (Array.isArray(s.history)) renderHistory(s.history)
+    if (Array.isArray(s.float.errors)) renderFloatErrors(s.float.errors)
+  }).catch(() => {})
+  bindChange()
+  renderStatus()
+})()
+</script>
+</body>
+</html>

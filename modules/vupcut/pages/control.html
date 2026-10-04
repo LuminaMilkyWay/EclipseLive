@@ -1,0 +1,636 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>VupCutCode</title>
+<style>
+  /* 遵循 MODULE_UI_CONTRACT.md（模块 UI = 宿主皮肤）：**零颜色字面量、零自建令牌、body 透明、
+     圆角/间距只走 var(--r-*) / var(--sp-*)**；分组卡片与宿主 .card **同配方**（玻璃材质 + --mat-* + --r-lg，
+     用户 2026-10-02 拍板 A ⇒ backdrop-filter 必需，禁 --mat-veil）。
+     令牌由宿主单向注入（T33 / module-page:tokens），本页**不定义任何令牌**。 */
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100vh; }
+  body {
+    font: 14px/1.5 "Rajdhani", "Noto Sans SC", "Source Han Sans SC", "Microsoft YaHei UI", sans-serif;
+    background: transparent; /* 材质底由宿主槽位提供，页面不自绘画布底 */
+    color: var(--txt-1);
+    padding: var(--sp-5);
+    height: 100vh;
+    overflow-y: auto; /* 滚动发生在页面自身盒内（不越出槽位） */
+  }
+  header { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-4); flex-wrap: wrap; }
+  header h1 { font-size: 18px; margin: 0; }
+  .spacer { flex: 1; }
+  h2 { font-size: 13px; color: var(--acc); margin: 0 0 var(--sp-2); letter-spacing: 0.5px; }
+  .badge { font-size: 12px; padding: var(--sp-1) var(--sp-2); border: 1px solid var(--line); border-radius: var(--r-md); color: var(--txt-2); }
+  .badge.ok { color: var(--ok); border-color: var(--ok-line); }
+  .badge.warn { color: var(--warn); border-color: var(--warn-line); }
+  nav.tabs { display: flex; gap: var(--sp-2); margin-bottom: var(--sp-4); flex-wrap: wrap; }
+  /* 分区卡片 = 宿主 .card 同配方 */
+  section, .card {
+    background: var(--card-bg);
+    backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+    -webkit-backdrop-filter: blur(var(--mat-blur)) saturate(var(--mat-sat));
+    border: 1px solid var(--mat-border);
+    border-radius: var(--r-lg);
+    box-shadow: var(--mat-edge-light), var(--mat-edge-thick), var(--mat-glow), var(--mat-shadow-1), var(--mat-shadow-2);
+    padding: var(--sp-4);
+    margin-bottom: var(--sp-4);
+  }
+  /* 自适应：卡片按可用宽度自动排 1/2/3 列（用户反馈：全屏后内容仍很窄） */
+  section[data-panel] { display: grid; gap: var(--sp-4); grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); align-items: start; }
+  /* 网格会覆盖 [hidden] 的 display:none ⇒ 用更高特异性压回去（否则各标签页同时显示） */
+  section[data-panel][hidden] { display: none; }
+  .card { margin-bottom: 0; min-width: 0; }
+  label { display: block; color: var(--txt-2); font-size: 12px; margin-bottom: var(--sp-1); }
+  input, select, textarea {
+    background: var(--bg-card-2); color: var(--txt-1); border: 1px solid var(--line);
+    border-radius: var(--r-md); padding: var(--sp-1) var(--sp-2); font: inherit; width: 100%;
+  }
+  input[type="checkbox"] { width: auto; }
+  .row { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+  .row > * { flex: 1; min-width: 140px; }
+  .row > .fixed { flex: 0 0 auto; }
+  button {
+    padding: var(--sp-2) var(--sp-3); border: 1px solid var(--line-strong); border-radius: var(--r-sm);
+    background: var(--bg-card-2); color: var(--txt-1); cursor: pointer; font: inherit; font-size: 12px;
+  }
+  button:hover { border-color: var(--acc); }
+  button.primary { background: var(--acc-fill); border-color: var(--acc-line); color: var(--txt-1); }
+  button:disabled { opacity: 0.55; cursor: not-allowed; }
+  button.active { outline: 2px solid var(--acc); outline-offset: 1px; }
+  nav.tabs button[aria-selected="true"] { border-color: var(--acc-line); background: var(--acc-fill); color: var(--acc); }
+  .hint { color: var(--txt-2); font-size: 12px; margin-top: var(--sp-1); }
+  .warnbox { border: 1px solid var(--warn-line); color: var(--warn); border-radius: var(--r-md); padding: var(--sp-2) var(--sp-3); margin-top: var(--sp-2); font-size: 12px; }
+  .okbox { border: 1px solid var(--ok-line); color: var(--ok); border-radius: var(--r-md); padding: var(--sp-2) var(--sp-3); margin-top: var(--sp-2); font-size: 12px; }
+  .errbox { border: 1px solid var(--bad-line); color: var(--bad); border-radius: var(--r-md); padding: var(--sp-2) var(--sp-3); margin-top: var(--sp-2); font-size: 12px; }
+  .todo { color: var(--txt-2); font-size: 12px; }
+  code { background: var(--bg-overlay); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 0 var(--sp-1); }
+  progress { width: 100%; accent-color: var(--acc); }
+  .clip { border-top: 1px solid var(--line); padding: var(--sp-2) 0; }
+  .clip .when { flex: 0 0 auto; min-width: 120px; }
+  .clip .score { flex: 0 0 auto; min-width: 60px; color: var(--txt-2); }
+</style>
+</head>
+<body>
+<header>
+  <h1>VupCutCode</h1>
+  <span class="badge" id="netBadge">联网：未知</span>
+  <span class="badge" id="priceBadge">价目：未知</span>
+  <span class="spacer"></span>
+  <button class="ghost" id="refreshPrices">立即更新价目</button>
+</header>
+
+<main>
+  <nav class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-tab="run">处理</button>
+    <button role="tab" aria-selected="false" data-tab="source">数据源</button>
+    <button role="tab" aria-selected="false" data-tab="score">评分</button>
+    <button role="tab" aria-selected="false" data-tab="export">导出</button>
+  </nav>
+
+  <section data-panel="run">
+    <div class="card">
+      <h2>选择场次并开始</h2>
+      <div class="row">
+        <select id="session"></select>
+        <button class="primary" id="startRun" style="flex:0 0 auto">开始处理</button>
+        <button class="ghost" id="cancelRun" style="flex:0 0 auto" disabled>取消</button>
+      </div>
+      <div class="hint" id="sessionHint">读取录像目录中…</div>
+      <div id="readiness" class="warnbox" hidden></div>
+      <div class="hint">处理流程：读弹幕 → 对齐时间轴 → 切窗口 → 抽音频 → 转写（可选）→ 评分 → 导出。评分与导出的细项使用默认值（可在数据源页调整上限与模型）。</div>
+    </div>
+
+    <div class="card">
+      <h2>进度</h2>
+      <div class="row"><progress id="bar" value="0" max="1" style="width:100%"></progress></div>
+      <div class="hint" id="phase">尚未开始</div>
+      <div class="hint" id="spend">花费：—</div>
+      <div id="runWarn" class="warnbox" hidden></div>
+      <div id="runErr" class="errbox" hidden></div>
+    </div>
+
+    <div class="card">
+      <h2>结果</h2>
+      <div class="row">
+        <label style="flex:0 0 auto;margin:0">排序：</label>
+        <select id="sortMode" style="flex:0 0 auto;width:auto">
+          <option value="score">按分数</option>
+          <option value="time">按时间</option>
+        </select>
+        <button class="ghost" id="exportAll" style="flex:0 0 auto">导出全部</button>
+      </div>
+      <div id="clipList" class="hint">还没有结果。</div>
+      <div class="hint">手动标记优先级最高：它会占位，自动结果不会覆盖它。</div>
+      <div class="row">
+        <input id="markStart" placeholder="开始，例如 1:23 或 83.5" />
+        <input id="markEnd" placeholder="结束，例如 1:35 或 95" />
+        <button class="ghost" id="addMark" style="flex:0 0 auto">加手动标记</button>
+      </div>
+      <div class="hint" id="markMsg"></div>
+    </div>
+  </section>
+
+  <section data-panel="source" hidden>
+    <div class="card">
+      <h2>API 选择（按厂商注册表）</h2>
+      <label for="provider">厂商</label>
+      <select id="provider"></select>
+      <div id="providerWarn" class="warnbox" hidden></div>
+      <div class="hint" id="providerHint">计费模式：未知</div>
+
+      <label for="baseUrl">接口地址（base URL，可粘贴自建网关）</label>
+      <input id="baseUrl" placeholder="留空则用厂商默认；套餐常有自己的接入点" />
+
+      <label for="apiKey">API 密钥</label>
+      <div class="row">
+        <input id="apiKey" type="password" placeholder="粘贴密钥后点右侧保存（只存进凭据库）" />
+        <button class="primary" id="saveKey" style="flex:0 0 auto">保存密钥</button>
+      </div>
+      <div class="hint" id="keyState">密钥：未设置</div>
+      <div class="hint">密钥保存在宿主凭据库（按模块命名空间隔离），<b>永不回显</b>，也不会写进配置文件。</div>
+    </div>
+
+    <div class="card">
+      <h2>联网（默认关闭）</h2>
+      <div class="row">
+        <label style="flex:0 0 auto;margin:0"><input type="checkbox" id="netEnabled" /> 允许 VupCutCode 访问网络</label>
+      </div>
+      <div class="hint">开启后：① 评分调用会发送<b>窗口摘录与弹幕统计</b>（不是原始录像）；② 价目会从在线源刷新。</div>
+      <label for="allowHosts">额外放行的主机（自建网关，逗号分隔）</label>
+      <input id="allowHosts" placeholder="例如 api.deepseek.com, my-gateway.example" />
+      <div class="hint">宿主另有两道硬闸门：<b>只允许 https</b>、<b>只允许白名单主机</b>，且不跟随重定向。</div>
+    </div>
+
+    <div class="card">
+      <h2>花费上限（超限会先问你，不会硬停）</h2>
+      <div class="row">
+        <div>
+          <label for="paygCny">按量计费：单场上限（元）</label>
+          <input id="paygCny" type="number" min="0" step="0.5" value="2" />
+        </div>
+        <div>
+          <label for="planPct">套餐额度：单场上限（%）</label>
+          <input id="planPct" type="number" min="1" max="100" step="1" value="20" />
+        </div>
+      </div>
+      <div class="hint">套餐用户（如 MiMo Token Plan）按<b>额度百分比</b>计算——订阅已付费，边际成本为 0，不该用金额拦你。</div>
+    </div>
+
+    <div class="card">
+      <h2>模型（评分用）</h2>
+      <label for="model">模型 ID（可搜索，也可手填任意服务）</label>
+      <input id="model" list="modelList" placeholder="例如 mimo-v2.6-flash / deepseek-chat / gpt-4o-mini" />
+      <datalist id="modelList"></datalist>
+      <div class="hint" id="modelHint">未填写 ⇒ 无法评分（「处理」页会提示缺什么）。</div>
+      <label for="planTier">套餐档（套餐用户必填，用来算"本场消耗占比"）</label>
+      <div class="row">
+        <select id="planTier"></select>
+        <button class="ghost fixed" id="clearPlan">不按套餐计</button>
+      </div>
+      <div class="hint" id="planHint">套餐已付费 ⇒ 边际成本为 0，因此按<b>额度百分比</b>提示，而不是按人民币。</div>
+    </div>
+
+    <div class="card">
+      <h2>ASR（转写，可选）</h2>
+      <div class="row">
+        <label style="margin:0"><input type="checkbox" id="asrSeparate" /> 与评分用不同的服务</label>
+      </div>
+      <div id="asrFields" hidden>
+        <label for="asrModel">ASR 模型 ID</label>
+        <input id="asrModel" placeholder="例如 mimo-v2.5-asr / whisper-1 / whisper-large-v3-turbo" />
+        <label for="asrBaseUrl">ASR 接口地址（可粘贴自建网关）</label>
+        <input id="asrBaseUrl" placeholder="留空则用与该模型匹配的默认地址" />
+        <label for="asrPath">ASR 路径（可选）</label>
+        <input id="asrPath" placeholder="/v1/audio/transcriptions" />
+        <label for="asrKey">ASR 密钥（只存凭据库，永不回显）</label>
+        <div class="row">
+          <input id="asrKey" type="password" placeholder="留空表示与评分用同一个密钥" />
+          <button class="ghost fixed" id="saveAsrKey">保存</button>
+        </div>
+        <div class="hint" id="asrKeyState">ASR 密钥：未单独设置（将使用评分密钥）</div>
+      </div>
+      <div class="hint">不填 ASR 也能跑：会跳过转写，评分只依据弹幕统计（质量会明显下降）。</div>
+    </div>
+
+    <div class="card">
+      <h2>未收录模型的单价（可选）</h2>
+      <div class="row">
+        <input id="ovMatch" placeholder="模型 ID，例如 mimo-v2.6-pro" />
+        <input id="ovIn" type="number" min="0" step="0.01" placeholder="输入 ¥/1M" />
+        <input id="ovOut" type="number" min="0" step="0.01" placeholder="输出 ¥/1M" />
+        <button class="ghost fixed" id="addOverride">加入</button>
+      </div>
+      <div class="hint" id="ovList">未添加覆盖单价。未收录的模型，程序<b>不会猜</b>价钱。</div>
+    </div>
+
+    <div class="card">
+      <h2>价目表</h2>
+      <div id="priceInfo" class="hint">读取中…</div>
+      <div class="hint">价格是易变数据：在线价目为<b>参考价</b>（OpenRouter，美元），不等于各家官方人民币价。缺失的条目请自己填，程序<b>不会猜</b>。</div>
+    </div>
+  </section>
+
+  <section data-panel="score" hidden>
+    <div class="card">
+      <h2>评分</h2>
+      <p class="todo">本段下一卡实现：模型与提示词预览、候选窗口挑选、本场预计消耗占比、超限确认（继续／终止）。</p>
+      <p class="todo">已完成的地基：模型 ID 识别（OpenAI／Anthropic／Google 及兼容家族）、提示词编排与预览、白名单校验、时间戳由代码回填。</p>
+    </div>
+  </section>
+
+  <section data-panel="export" hidden>
+    <div class="card">
+      <h2>导出</h2>
+      <p class="todo">本段下一卡实现：MP4（H.264/AAC）+ SRT 字幕，输出目录与命名规则。</p>
+      <p class="todo">已完成的地基：受管子进程（FFmpeg 走核心，模块停用即结束）、手动标记与自动结果合并（手动优先）。</p>
+    </div>
+  </section>
+</main>
+
+<script>
+  // 模块页面经网关加载，token 在 URL 上 ⇒ 所有请求都要带上它（同源、相对路径）。
+  const TOKEN = new URLSearchParams(location.search).get('token') || '';
+  const withToken = (p) => p + (p.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(TOKEN);
+  const api = async (path, init) => {
+    const res = await fetch(withToken(path), init);
+    const text = await res.text();
+    try { return { status: res.status, json: JSON.parse(text) }; } catch { return { status: res.status, json: null, text }; }
+  };
+  const $ = (id) => document.getElementById(id);
+  const post = (path, body) => api(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}) });
+
+  const els = {
+    netBadge: $('netBadge'), priceBadge: $('priceBadge'), provider: $('provider'),
+    providerWarn: $('providerWarn'), providerHint: $('providerHint'), baseUrl: $('baseUrl'),
+    apiKey: $('apiKey'), keyState: $('keyState'), netEnabled: $('netEnabled'),
+    allowHosts: $('allowHosts'), paygCny: $('paygCny'), planPct: $('planPct'), priceInfo: $('priceInfo')
+  };
+
+  const BADGE = { payg: '按量计费', plan: '套餐（额度制）', subscription: '订阅（不含 API 额度）' };
+  let providers = [];
+
+  function renderProvider(idx) {
+    const p = providers[idx];
+    if (!p) return;
+    els.providerHint.textContent = '计费模式：' + (BADGE[p.billing] || p.billing || '未知');
+    if (p.billing === 'subscription') {
+      els.providerWarn.hidden = false;
+      els.providerWarn.textContent = (p.warning || '该订阅不含 API 额度，将按量计费。') + '（已确认过则不再重复询问）';
+    } else {
+      els.providerWarn.hidden = true;
+    }
+    if (p.baseUrl) els.baseUrl.value = p.baseUrl;
+  }
+
+  function renderState(s) {
+    els.keyState.textContent = '密钥：' + (s.key && s.key.set ? '已保存（不回显）' : '未设置');
+    els.netEnabled.checked = !!(s.network && s.network.enabled);
+    els.netBadge.textContent = s.network && s.network.enabled ? '联网：已开启' : '联网：已关闭';
+    els.netBadge.className = 'badge ' + (s.network && s.network.enabled ? 'ok' : '');
+    els.allowHosts.value = (s.network && s.network.allowHosts || []).join(', ');
+    els.paygCny.value = s.limits ? s.limits.paygCny : 2;
+    els.planPct.value = s.limits ? s.limits.planPct : 20;
+    const pi = s.prices || {};
+    const src = pi.source === 'online' ? '在线（OpenRouter 参考价）' : pi.source === 'cache' ? '本地缓存' : '内置';
+    els.priceInfo.textContent = '来源：' + src + '；日期：' + (pi.asOf || '未标注') + '；条目：' + (pi.models || 0) +
+      ' 条（其中已填单价 ' + (pi.priced || 0) + ' 条）' + (pi.error ? '；提示：' + pi.error : '');
+    els.priceBadge.textContent = '价目：' + src;
+    els.priceBadge.className = 'badge ' + (pi.source === 'online' ? 'ok' : '');
+    renderSourceExtras(s);
+    if (s.provider) {
+      const i = providers.findIndex((x) => x.id === s.provider);
+      if (i >= 0) { els.provider.value = providers[i].id; renderProvider(i); }
+    }
+  }
+
+  async function loadProviders() {
+    const r = await api('/vupcut/providers');
+    providers = (r.json && r.json.providers) || [];
+    providersCache = providers;
+    els.provider.innerHTML = providers.map((p) => '<option value="' + p.id + '">' + p.label + '</option>').join('');
+    renderProvider(0);
+  }
+
+  async function loadState() {
+    const r = await api('/vupcut/state');
+    if (r.json) renderState(r.json);
+  }
+
+  // 标签页
+  document.querySelectorAll('nav.tabs button').forEach((b) => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('nav.tabs button').forEach((x) => x.setAttribute('aria-selected', String(x === b)));
+      document.querySelectorAll('section[data-panel]').forEach((s) => { s.hidden = s.dataset.panel !== b.dataset.tab; });
+    });
+  });
+
+  els.provider.addEventListener('change', () => {
+    const p = providers.find((x) => x.id === els.provider.value);
+    const i = providers.indexOf(p);
+    if (i >= 0) renderProvider(i);
+    if (p && p.billing === 'subscription') {
+      const ackKey = 'vupcut.ack.' + p.id;
+      if (!localStorage.getItem(ackKey)) {
+        const ok = confirm((p.warning || '该订阅不含 API 额度。') + '\n\n点"确定"表示我明白：使用 API 会按量另行计费。');
+        if (ok) localStorage.setItem(ackKey, '1');
+      }
+    }
+    post('/vupcut/config', { provider: els.provider.value, baseUrl: els.baseUrl.value.trim() }).then(loadState);
+  });
+
+  els.saveKey.addEventListener('click', async () => {
+    const secret = els.apiKey.value;
+    const r = await post('/vupcut/key', { secret });
+    els.apiKey.value = '';
+    if (r.status !== 200) { alert((r.json && r.json.error) || '保存失败'); return; }
+    els.keyState.textContent = '密钥：' + (r.json && r.json.set ? '已保存（不回显）' : '未设置');
+    await post('/vupcut/config', { provider: els.provider.value, baseUrl: els.baseUrl.value.trim() });
+  });
+
+  els.netEnabled.addEventListener('change', async () => {
+    if (els.netEnabled.checked && !localStorage.getItem('vupcut.ack.network')) {
+      const ok = confirm('开启联网后，VupCutCode 会：\n' +
+        '· 把「窗口摘录 + 弹幕统计」发送给你选择的模型服务（不是原始录像）；\n' +
+        '· 从在线源刷新价目表（OpenRouter 参考价）；\n' +
+        '· 密钥只存在宿主凭据库，不会外发到别处。\n\n是否开启？');
+      if (!ok) { els.netEnabled.checked = false; return; }
+      localStorage.setItem('vupcut.ack.network', '1');
+    }
+    const hosts = els.allowHosts.value.split(',').map((s) => s.trim()).filter(Boolean);
+    await post('/vupcut/config', { network: { enabled: els.netEnabled.checked, allowHosts: hosts } });
+    await loadState();
+  });
+
+  els.allowHosts.addEventListener('change', () => {
+    const hosts = els.allowHosts.value.split(',').map((s) => s.trim()).filter(Boolean);
+    post('/vupcut/config', { network: { enabled: els.netEnabled.checked, allowHosts: hosts } });
+  });
+
+  [els.paygCny, els.planPct].forEach((el) => el.addEventListener('change', () => {
+    post('/vupcut/config', { limits: { paygCny: Number(els.paygCny.value), planPct: Number(els.planPct.value) } });
+  }));
+
+  $('refreshPrices').addEventListener('click', async () => {
+    els.priceInfo.textContent = '正在更新…';
+    const r = await post('/vupcut/prices/refresh', {});
+    if (r.status !== 200) { els.priceInfo.textContent = '更新失败：' + ((r.json && r.json.error) || '未知原因'); return; }
+    await loadState();
+  });
+
+  /* ── 「处理」页：选场次 → 开始 → 进度/取消 → 结果/导出/手动标记（用户 Q1=a 未就绪即禁用） ── */
+  const runEls = {
+    session: $('session'), start: $('startRun'), cancel: $('cancelRun'), hint: $('sessionHint'),
+    readiness: $('readiness'), bar: $('bar'), phase: $('phase'), spend: $('spend'),
+    warn: $('runWarn'), err: $('runErr'), list: $('clipList'), sort: $('sortMode'),
+    exportAll: $('exportAll'), markStart: $('markStart'), markEnd: $('markEnd'), addMark: $('addMark'), markMsg: $('markMsg')
+  };
+  let poll = null;
+  let lastClips = [];
+  let readiness = {};
+
+  function fmt(sec) {
+    const n = Number(sec) || 0;
+    const m = Math.floor(n / 60);
+    const s = n % 60;
+    return m + ':' + (s < 10 ? '0' : '') + s.toFixed(1);
+  }
+  /** 宽松解析（与模块侧 parseSeconds 同口径：支持 83 / 1:23 / 1:02:03 / 1分23秒）。 */
+  function parseSec(text) {
+    const t = String(text || '').trim();
+    if (t === '') return NaN;
+    const cn = /^(?:(\d+(?:\.\d+)?)\s*(?:小时|h))?\s*(?:(\d+(?:\.\d+)?)\s*(?:分|m|min))?\s*(?:(\d+(?:\.\d+)?)\s*(?:秒|s|sec))?$/i.exec(t);
+    if (cn && (cn[1] || cn[2] || cn[3])) return Number(cn[1] || 0) * 3600 + Number(cn[2] || 0) * 60 + Number(cn[3] || 0);
+    const p = t.split(':').map(Number);
+    if (p.some((x) => !Number.isFinite(x))) return NaN;
+    return p.reduce((a, b) => a * 60 + b, 0);
+  }
+
+  function renderReadiness() {
+    const missing = [];
+    if (!readiness.network) missing.push('核心未授权联网（需 network-access 且已注入网络服务）');
+    if (!readiness.proc) missing.push('未授权子进程（FFmpeg 无法运行）');
+    if (!readiness.llmKey) missing.push('未保存 API 密钥（请在「数据源」页填写）');
+    if (!readiness.model) missing.push('未填写模型 ID（请在「数据源」页填写）');
+    if (!readiness.outputDir) missing.push('未配置输出目录');
+    if (!readiness.recordingsDir) missing.push('未配置录像目录');
+    const ok = missing.length === 0;
+    runEls.start.disabled = !ok;
+    if (!ok) {
+      runEls.readiness.hidden = false;
+      runEls.readiness.innerHTML = '暂时不能开始，缺少：<br>· ' + missing.join('<br>· ');
+    } else {
+      runEls.readiness.hidden = true;
+    }
+    if (!readiness.asrModel) {
+      runEls.hint.textContent = '提示：未配置 ASR 模型 ⇒ 会跳过转写，评分只能依据弹幕统计（质量会明显下降）。';
+    }
+  }
+
+  function renderClips() {
+    if (lastClips.length === 0) {
+      runEls.list.textContent = '还没有结果。';
+      return;
+    }
+    const sorted = [...lastClips].sort((a, b) =>
+      runEls.sort.value === 'time' ? a.start - b.start : (b.score || 0) - (a.score || 0)
+    );
+    runEls.list.innerHTML = sorted
+      .map(
+        (c) =>
+          '<div class="row" style="border-top:1px solid var(--line);padding:8px 0">' +
+          '<div style="flex:0 0 auto;min-width:120px">' + fmt(c.start) + ' – ' + fmt(c.end) + '</div>' +
+          '<div style="flex:0 0 auto;min-width:64px">' + (c.score === null ? '—' : c.score + ' 分') + '</div>' +
+          '<div>' + (c.reason || '') + (c.source === 'manual' ? ' <span class="badge">手动</span>' : '') + '</div>' +
+          '<button class="ghost" style="flex:0 0 auto" data-export="' + c.id + '">导出</button>' +
+          '</div>'
+      )
+      .join('');
+    runEls.list.querySelectorAll('button[data-export]').forEach((b) => {
+      b.addEventListener('click', async () => {
+        b.disabled = true;
+        const r = await post('/vupcut/export', { clips: [b.dataset.export] });
+        b.textContent = r.status === 200 && r.json && r.json.ok ? '已导出' : '失败';
+      });
+    });
+  }
+
+  function renderJob(j) {
+    if (j.readiness && Object.keys(j.readiness).length > 0) { readiness = j.readiness; renderReadiness(); }
+    const done = (j.progress || []).filter((p) => p.ok !== false).length;
+    runEls.bar.value = j.running ? Math.min(0.9, done / Math.max(done + 1, 8)) : j.phase === 'done' ? 1 : 0;
+    const names = { danmaku: '读弹幕', offset: '对齐时间轴', windows: '切窗口', asr: '转写', score: '评分', export: '导出' };
+    runEls.phase.textContent = j.running ? '进行中：' + (names[j.phase] || j.phase) : j.phase === 'done' ? '已完成' : j.phase === 'cancelled' ? '已取消（可续跑）' : j.phase === 'failed' ? '失败' : '尚未开始';
+    runEls.spend.textContent = '花费：' + (j.spentCny ? '¥' + Number(j.spentCny).toFixed(2) : '¥0.00') + (j.creditsUsed ? '；套餐额度 ' + j.creditsUsed + ' Credits' : '');
+    runEls.warn.hidden = !j.warning;
+    if (j.warning) runEls.warn.textContent = j.warning;
+    runEls.err.hidden = !j.error;
+    if (j.error) runEls.err.textContent = '失败原因：' + j.error;
+    runEls.cancel.disabled = !j.running;
+    runEls.start.disabled = j.running || runEls.start.disabled;
+    lastClips = j.clips || [];
+    renderClips();
+  }
+
+  async function loadSessions() {
+    const r = await api('/vupcut/sessions');
+    const list = (r.json && r.json.sessions) || [];
+    runEls.session.innerHTML = list.length
+      ? list.map((s) => '<option value="' + s.name + '">' + s.name + (s.danmakuPath ? '（有弹幕）' : '（缺弹幕）') + '</option>').join('')
+      : '<option value="">（没有可用录像）</option>';
+    runEls.hint.textContent = r.json && r.json.note ? r.json.note : '共 ' + list.length + ' 个场次。';
+    runEls.start.disabled = list.length === 0;
+  }
+
+  async function refreshJob() {
+    const r = await api('/vupcut/job');
+    if (r.json) renderJob(r.json);
+    return r.json;
+  }
+
+  runEls.start.addEventListener('click', async () => {
+    runEls.err.hidden = true;
+    const r = await post('/vupcut/run', { session: runEls.session.value });
+    if (r.status !== 202 && r.status !== 200) {
+      runEls.err.hidden = false;
+      runEls.err.textContent = '无法开始：' + ((r.json && r.json.error) || '未知原因');
+      return;
+    }
+    if (poll) clearInterval(poll);
+    poll = setInterval(async () => {
+      const j = await refreshJob();
+      if (j && j.running === false) { clearInterval(poll); poll = null; }
+    }, 1000);
+  });
+
+  runEls.cancel.addEventListener('click', async () => {
+    await post('/vupcut/job/cancel', {});
+    await refreshJob();
+  });
+
+  runEls.exportAll.addEventListener('click', async () => {
+    const r = await post('/vupcut/export', {});
+    runEls.markMsg.textContent = r.status === 200 ? '已导出 ' + (r.json.exported || 0) + ' 条' : '导出失败：' + ((r.json && r.json.error) || '');
+  });
+
+  runEls.sort.addEventListener('change', renderClips);
+
+  runEls.addMark.addEventListener('click', async () => {
+    const start = parseSec(runEls.markStart.value);
+    const end = parseSec(runEls.markEnd.value);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+      runEls.markMsg.textContent = '起止时间不合法（支持 83 / 1:23 / 1:02:03 / 1分23秒）';
+      return;
+    }
+    const r = await post('/vupcut/mark', { start, end });
+    runEls.markMsg.textContent = r.status === 200 ? '已加入手动标记（优先级最高）' : '失败：' + ((r.json && r.json.error) || '');
+    if (r.status === 200) { runEls.markStart.value = ''; runEls.markEnd.value = ''; }
+  });
+
+  /* ── 数据源页的新增项：模型 ID / 套餐档 / ASR 独立配置 / 单价覆盖 ───────────── */
+  const srcEls = {
+    model: $('model'), modelList: $('modelList'), modelHint: $('modelHint'),
+    planTier: $('planTier'), clearPlan: $('clearPlan'), planHint: $('planHint'),
+    asrSeparate: $('asrSeparate'), asrFields: $('asrFields'), asrModel: $('asrModel'),
+    asrBaseUrl: $('asrBaseUrl'), asrPath: $('asrPath'), asrKey: $('asrKey'),
+    saveAsrKey: $('saveAsrKey'), asrKeyState: $('asrKeyState'),
+    ovMatch: $('ovMatch'), ovIn: $('ovIn'), ovOut: $('ovOut'), addOverride: $('addOverride'), ovList: $('ovList')
+  };
+  let providersCache = [];
+  let overrides = [];
+
+  function renderSourceExtras(s) {
+    // 模型 ID + 建议（来自价目表；可搜可填）
+    if (s.model) srcEls.model.value = s.model;
+    const sug = s.modelSuggestions || [];
+    srcEls.modelList.innerHTML = sug.map((x) => '<option value="' + x.id + '"></option>').join('');
+    srcEls.modelHint.textContent = s.model
+      ? '当前模型：' + s.model + '（建议里带勾的表示价目表已收录单价，预算估算更准）'
+      : '未填写 ⇒ 无法评分（「处理」页会提示缺什么）。共 ' + sug.length + ' 个建议。';
+
+    // 套餐档
+    const p = providersCache.find((x) => x.id === s.provider);
+    const tiers = (p && p.plans) || [];
+    srcEls.planTier.innerHTML = '<option value="">（不按套餐计）</option>' +
+      tiers.map((t) => '<option value="' + t.id + '">' + t.label + ' · ¥' + t.cnyPerMonth + '/月 · ' +
+        Math.round((t.creditsPerMonth || 0) / 1e8) + ' 亿 Credits</option>').join('');
+    if (s.plan && s.plan.tier) srcEls.planTier.value = s.plan.tier;
+    srcEls.planHint.textContent = s.plan && s.plan.tier
+      ? '已选套餐档 ⇒ 预算按额度百分比判断（「处理」页会显示本场占比）。'
+      : '未选套餐档 ⇒ 按人民币上限判断。';
+
+    // ASR
+    const a = s.asr || {};
+    srcEls.asrModel.value = a.model || '';
+    srcEls.asrBaseUrl.value = a.baseUrl || '';
+    srcEls.asrPath.value = a.path || '';
+    const separate = Boolean(a.model);
+    srcEls.asrSeparate.checked = separate;
+    srcEls.asrFields.hidden = !separate;
+    srcEls.asrKeyState.textContent = a.keySet
+      ? 'ASR 密钥：已单独保存（不回显）'
+      : 'ASR 密钥：未单独设置（将使用评分密钥）';
+
+    // 单价覆盖
+    overrides = s.priceOverride || [];
+    srcEls.ovList.textContent = overrides.length === 0
+      ? '未添加覆盖单价。未收录的模型，程序不会猜价钱。'
+      : '已覆盖 ' + overrides.length + ' 个模型：' + overrides.map((o) => o.match).join('、');
+  }
+
+  srcEls.model.addEventListener('change', () => {
+    post('/vupcut/config', { model: srcEls.model.value.trim() }).then(loadState);
+  });
+  srcEls.planTier.addEventListener('change', () => {
+    const p = providersCache.find((x) => x.id === els.provider.value);
+    const tier = (p && p.plans ? p.plans.find((t) => t.id === srcEls.planTier.value) : null) || null;
+    post('/vupcut/config', {
+      plan: tier ? { provider: els.provider.value, tier: tier.id, quotaTotal: tier.creditsPerMonth } : { provider: null, tier: null, quotaTotal: null }
+    }).then(loadState);
+  });
+  srcEls.clearPlan.addEventListener('click', () => {
+    post('/vupcut/config', { plan: { provider: null, tier: null, quotaTotal: null } }).then(loadState);
+  });
+  srcEls.asrSeparate.addEventListener('change', () => {
+    srcEls.asrFields.hidden = !srcEls.asrSeparate.checked;
+    if (!srcEls.asrSeparate.checked) {
+      post('/vupcut/config', { asr: { model: '', baseUrl: '', path: '', language: 'zh' } }).then(loadState);
+    }
+  });
+  [srcEls.asrModel, srcEls.asrBaseUrl, srcEls.asrPath].forEach((el) =>
+    el.addEventListener('change', () => {
+      post('/vupcut/config', {
+        asr: {
+          model: srcEls.asrModel.value.trim(),
+          baseUrl: srcEls.asrBaseUrl.value.trim(),
+          path: srcEls.asrPath.value.trim(),
+          language: 'zh'
+        }
+      }).then(loadState);
+    })
+  );
+  srcEls.saveAsrKey.addEventListener('click', async () => {
+    const r = await post('/vupcut/key', { secret: srcEls.asrKey.value, slot: 'asr' });
+    srcEls.asrKey.value = '';
+    srcEls.asrKeyState.textContent = r.status === 200 ? 'ASR 密钥：已单独保存（不回显）' : '保存失败：' + ((r.json && r.json.error) || '');
+  });
+  srcEls.addOverride.addEventListener('click', async () => {
+    const match = srcEls.ovMatch.value.trim();
+    const input = Number(srcEls.ovIn.value);
+    const output = Number(srcEls.ovOut.value);
+    if (match === '' || !Number.isFinite(input) || !Number.isFinite(output)) {
+      srcEls.ovList.textContent = '请填写模型 ID 与输入/输出单价（每 1M token）';
+      return;
+    }
+    const next = overrides.filter((o) => o.match !== match).concat([{ match, currency: 'CNY', input, output }]);
+    const r = await post('/vupcut/config', { prices: { override: next } });
+    srcEls.ovList.textContent = r.status === 200 ? '已加入 ' + match : '保存失败：' + ((r.json && r.json.error) || '');
+    if (r.status === 200) { srcEls.ovMatch.value = ''; srcEls.ovIn.value = ''; srcEls.ovOut.value = ''; await loadState(); }
+  });
+
+  loadProviders().then(loadState).then(loadSessions).then(refreshJob).catch((e) => { els.priceInfo.textContent = '初始化失败：' + e.message; });
+</script>
+</body>
+</html>

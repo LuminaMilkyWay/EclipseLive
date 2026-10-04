@@ -1,0 +1,156 @@
+/**
+ * 动效体系（T44）——统一时长/缓动令牌与入场、按压、聚焦等通用动效。
+ *
+ * 依据：用户要求「面板操作上的动画参考一下 MAC OS 或者其他好的范本工程，并且将动效加入到所有 UI 中」；
+ * 参考范式：macOS 的"揭示/抽屉"动效（rail reveal slides in from its own edge,
+ * https://github.com/neomjs/neo/pull/18079 ）与弹簧类缓动（https://github.com/satishkumarsajjan/ease-master ）。
+ *
+ * 铁律：
+ * • 所有时长/缓动**必须**引 renderer.css 的 `--duration-*` / `--ease-*` 令牌
+ *   （守卫 tests/unit/theme.spec.ts 会拒绝裸数字时长与裸缓动）；
+ * • 不得给承载原生视图的容器（.content / .content-scroll / 槽位）加 transform
+ *   （守卫 tests/unit/slot-animation-guard.spec.ts）；
+ * • `[data-reduce-motion='1']` 下由 renderer.css 的全局规则归零。
+ */
+
+/* ---- 通用入场：卡片/分区错峰上浮（只用 transform + opacity，无灰层） ---- */
+@keyframes el-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.el-rise {
+  animation: el-rise-in var(--duration-normal) var(--ease-spring) backwards;
+}
+
+/* 错峰：同一容器内的前 6 个元素依次延迟（克制，不做长队列） */
+.el-rise:nth-child(1) { animation-delay: calc(var(--duration-stagger) * 0); }
+.el-rise:nth-child(2) { animation-delay: calc(var(--duration-stagger) * 2); }
+.el-rise:nth-child(3) { animation-delay: calc(var(--duration-stagger) * 4); }
+.el-rise:nth-child(4) { animation-delay: calc(var(--duration-stagger) * 6); }
+.el-rise:nth-child(5) { animation-delay: calc(var(--duration-stagger) * 8); }
+.el-rise:nth-child(6) { animation-delay: calc(var(--duration-stagger) * 10); }
+
+/* ---- 页签切换：内容区入场（只作用于内容层，不碰原生视图容器） ---- */
+@keyframes el-tab-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.998);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.content-scroll > * {
+  animation: el-tab-in var(--duration-normal) var(--ease-spring);
+}
+
+/* ---- 按钮/胶囊按压：轻微内缩，松开弹回 ---- */
+.btn,
+.chip,
+.dock-item,
+.nav-item {
+  transition:
+    transform var(--duration-fast) var(--ease-out-back),
+    background-color var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+}
+
+.btn:active,
+.chip:active,
+.dock-item:active,
+.nav-item:active {
+  transform: scale(0.96);
+}
+
+/* ---- 输入框聚焦：描边与底色的柔和过渡 ---- */
+input,
+textarea,
+select {
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard);
+}
+
+/* ---- DOCK 揭示/收起（对齐 macOS：从自己那条边滑出） ---- */
+.dock {
+  transition: transform var(--duration-normal) var(--ease-spring);
+}
+
+/* ---- DOCK 项：hover 放大过冲 + 关闭徽标浮现（徽标默认隐藏、hover/聚焦时出现） ---- */
+.dock-item .dock-close {
+  opacity: 0;
+  transform: scale(0.6);
+  transition:
+    opacity var(--duration-fast) var(--ease-standard),
+    transform var(--duration-fast) var(--ease-out-back);
+  /* 视觉上 hover/聚焦才浮现，但**始终可点** —— 保证可编程点击（集成用例）与键盘可达性 */
+  pointer-events: auto;
+}
+
+.dock-item:hover .dock-close,
+.dock-item:focus-within .dock-close {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* ---- 侧栏覆盖层：从"菜单按钮"方向长出来 / 收回去 ---- */
+:root[data-focus='1'] .side {
+  transition:
+    transform var(--duration-normal) var(--ease-spring),
+    opacity var(--duration-fast) var(--ease-standard);
+}
+
+/* ==========================================================================
+ * T45：面板三段式动效（用户指出的三条缺失）
+ * ① 右侧面板展开：靠 renderer.css 的列宽改成**可插值**的 minmax() 形式 + 本文件的面板时长令牌；
+ * ② 菜单**向上展开**：el-side-rise —— 从 DOCK 左端「菜单」按钮位置（左下、缩小、透明）向上生长；
+ * ③ 菜单**从右上角收起并飞向菜单按钮**：el-side-drop —— 先以 top right 为原点"剥离"，
+ *    再整体向左下位移、缩小、淡出，终点与按钮位置一致。
+ * 全部只用 transform/opacity（无灰层），时长与缓动走令牌。
+ * ========================================================================== */
+
+@keyframes el-side-rise {
+  from {
+    opacity: 0;
+    /* 用户规格：菜单**向上展开**（从下方升起）——不缩放、不左右位移、无过冲 */
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes el-side-drop {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    /* 用户规格：菜单**向下回收** */
+    transform: translateY(24px);
+  }
+}
+
+/* 展开：从 DOCK 菜单按钮一侧生长（挂**无玻璃的内层**，避免折射坐标随元素移动） */
+:root:not([data-sidebar='collapsed']) .side-inner {
+  transform-origin: bottom left;
+  animation: el-side-rise var(--duration-panel) var(--ease-emphasized);
+}
+
+/* 收起：从右上角起收、飞向菜单按钮（同样挂内层） */
+:root[data-sidebar='collapsed'] .side-inner {
+  transform-origin: top right;
+  animation: el-side-drop var(--duration-panel) var(--ease-emphasized) forwards;
+}

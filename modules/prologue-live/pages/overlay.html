@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="eclipse-ui-context" content="canvas">
+<title>PrologueType Live · 悬浮输入窗</title>
+<style>
+  :root {
+    /* 尺寸层（镜像核心 renderer.css 设计令牌：悬浮窗独立 web 上下文，自建令牌消费） */
+    --r-sm: 8px; --r-md: 12px; --r-lg: 16px;
+    --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px;
+    --f-bg: #14141a;
+    --f-text: #ffffff;
+    --f-border: #888888;
+    --f-blur: 12px;
+    --f-op: 80%;
+    --f-top: 100%;
+    --f-font: "Microsoft YaHei";
+    --f-size: 16px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; }
+  body {
+    font-family: var(--f-font);
+    font-size: var(--f-size);
+    color: color-mix(in srgb, var(--f-text) var(--f-top), transparent);
+    -webkit-app-region: drag;
+    user-select: none;
+    padding: var(--sp-2);
+  }
+  .card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    height: 100%;
+    background: color-mix(in srgb, var(--f-bg) var(--f-op), transparent);
+    backdrop-filter: blur(var(--f-blur));
+    border: 1px solid var(--f-border);
+    border-radius: var(--r-lg);
+    padding: var(--sp-2);
+  }
+  textarea {
+    flex: 1;
+    min-height: 40px;
+    resize: none;
+    background: color-mix(in srgb, var(--f-bg) calc(var(--f-op) * 0.5), transparent);
+    color: color-mix(in srgb, var(--f-text) var(--f-top), transparent);
+    border: 1px solid var(--f-border);
+    border-radius: var(--r-md);
+    padding: 6px;
+    font: inherit;
+    -webkit-app-region: no-drag;
+    user-select: text;
+  }
+  .btns { display: flex; gap: 4px; flex-wrap: wrap; -webkit-app-region: no-drag; }
+  button {
+    background: color-mix(in srgb, var(--f-border) 30%, transparent);
+    color: color-mix(in srgb, var(--f-text) var(--f-top), transparent);
+    border: 1px solid var(--f-border);
+    border-radius: var(--r-sm);
+    padding: 3px var(--sp-2);
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  button.primary { background: var(--f-text); color: var(--f-bg); }
+  .history {
+    font-size: 11px;
+    opacity: 0.85;
+    -webkit-app-region: no-drag;
+    max-height: 42px;
+    overflow: hidden;
+  }
+  .history div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hint {
+    display: none;
+    font-size: 11px;
+    background: rgba(30, 40, 60, 0.7);
+    border: 1px solid #445; border-radius: var(--r-sm);
+    padding: 4px 6px;
+  }
+  body.click-through .hint { display: block; }
+  body.click-through textarea, body.click-through .btns { display: none; }
+  .grip {
+    position: absolute; right: 0; bottom: 0; width: 18px; height: 18px;
+    cursor: nwse-resize;
+    -webkit-app-region: no-drag;
+  }
+  .grip::after {
+    content: ""; position: absolute; right: 3px; bottom: 3px;
+    width: 8px; height: 8px;
+    border-right: 2px solid color-mix(in srgb, var(--f-text) 60%, transparent);
+    border-bottom: 2px solid color-mix(in srgb, var(--f-text) 60%, transparent);
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="hint">鼠标穿透已开启——点击会穿透到下层窗口。<br>恢复操作：模块快捷键 / 托盘「悬浮窗：关闭鼠标穿透」/ 设置页权限撤销。</div>
+  <textarea id="input" placeholder="输入文字…（Enter 发送）"></textarea>
+  <div class="btns">
+    <button id="btn-send" class="primary">发送</button>
+    <button id="btn-undo">撤销</button>
+    <button id="btn-pause">暂停</button>
+    <button id="btn-clear">清空</button>
+  </div>
+  <div class="history" id="history"></div>
+</div>
+<div class="grip" id="grip"></div>
+<script>
+(() => {
+  'use strict'
+  const CHANNEL = 'prologue-live'
+  const token = new URLSearchParams(location.search).get('token') ?? ''
+  const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws?token=' + encodeURIComponent(token)
+  const stateUrl = '/prologue-live/state' + location.search
+
+  const $ = (id) => document.getElementById(id)
+  let paused = false
+  let clickThrough = false
+
+  /* ---------- 浮窗样式（独立于 OBS，CSS 变量注入） ---------- */
+  function applyStyle(c) {
+    const f = c.float
+    const r = document.documentElement.style
+    r.setProperty('--f-bg', f.bgColor)
+    r.setProperty('--f-text', f.textColor)
+    r.setProperty('--f-border', f.borderColor)
+    r.setProperty('--f-blur', f.blurStrength + 'px')
+    r.setProperty('--f-op', f.bgOpacity + '%')
+    r.setProperty('--f-top', f.textOpacity + '%')
+    r.setProperty('--f-font', '"' + f.fontFamily.replace(/["\\]/g, '') + '"')
+    r.setProperty('--f-size', f.fontSize + 'px')
+    clickThrough = !!f.clickThrough
+    document.body.classList.toggle('click-through', clickThrough)
+  }
+
+  /* ---------- 发送 / 队列操作 ---------- */
+  function up(type, payload) {
+    ws.send(JSON.stringify({ channel: CHANNEL, payload: Object.assign({ type }, payload) }))
+  }
+  function sendNow() {
+    const text = $('input').value
+    if (!text.trim()) return
+    up('send', { text })
+    $('input').value = ''
+  }
+  function renderHistory(list) {
+    const h = $('history')
+    h.innerHTML = ''
+    for (const t of list.slice(0, 3)) {
+      const d = document.createElement('div')
+      d.textContent = t
+      h.appendChild(d)
+    }
+  }
+
+  $('input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); sendNow() }
+  })
+  $('btn-send').addEventListener('click', sendNow)
+  $('btn-undo').addEventListener('click', () => up('action', { op: 'undo' }))
+  $('btn-pause').addEventListener('click', () => up('action', { op: paused ? 'resume' : 'pause' }))
+  $('btn-clear').addEventListener('click', () => up('action', { op: 'clear' }))
+
+  /* ---------- resize 手柄（透明窗 Windows 无系统 resize → T26 桥） ---------- */
+  const grip = $('grip')
+  let dragging = null
+  grip.addEventListener('pointerdown', (e) => {
+    dragging = { x: e.clientX, y: e.clientY }
+    grip.setPointerCapture(e.pointerId)
+    e.preventDefault()
+  })
+  grip.addEventListener('pointermove', (e) => {
+    if (!dragging) return
+    const dx = e.clientX - dragging.x
+    const dy = e.clientY - dragging.y
+    dragging = { x: e.clientX, y: e.clientY }
+    if (window.eclipseliveOverlay) {
+      window.eclipseliveOverlay.resize({ dw: dx, dh: dy })
+    }
+  })
+  grip.addEventListener('pointerup', () => { dragging = null })
+
+  /* ---------- WS ---------- */
+  let ws
+  function connect() {
+    ws = new WebSocket(wsUrl)
+    ws.onmessage = (ev) => {
+      let msg
+      try { msg = JSON.parse(ev.data) } catch { return }
+      if (!msg || msg.channel !== CHANNEL) return
+      const p = msg.payload
+      if (!p || typeof p !== 'object') return
+      if (p.type === 'state' && p.config) applyStyle(p.config)
+      else if (p.type === 'history' && Array.isArray(p.history)) renderHistory(p.history)
+      else if (p.type === 'request-send') {
+        // 发送全局快捷键触发：提交当前输入框文本（无文本则空操作）
+        const text = $('input').value
+        if (text.trim()) {
+          up('send', { text })
+          $('input').value = ''
+        }
+      }
+      else if (p.type === 'queue') {
+        paused = !!p.paused
+        $('btn-pause').textContent = paused ? '继续' : '暂停'
+      }
+    }
+    ws.onclose = () => { setTimeout(() => { loadState(); connect() }, 1000) }
+  }
+
+  /* ---------- 初始加载 ---------- */
+  function loadState() {
+    fetch(stateUrl).then((r) => r.json()).then((s) => {
+      if (s.config) applyStyle(s.config)
+      if (Array.isArray(s.history)) renderHistory(s.history)
+    }).catch(() => {})
+  }
+  loadState()
+  connect()
+})()
+</script>
+</body>
+</html>
